@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD 11)
 add_library(pinyinfont
     source/status.h
     source/utility.h
+    source/mac_glyph_names.h
+    source/mac_glyph_names.cpp
     source/ot_font.h
     source/ot_font.cpp
     source/ot_font_parser.h

@@ -7,6 +7,7 @@ int main(int argc, char* argv[])
     if (argc >= 2) {
         filename = argv[1];
     }
+    fprintf(stdout, "filename = %s\n", filename);
 
     OpenType_Font font;
     OpenType_Font_Parser parser;
@@ -15,6 +16,10 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Parse failed, error=%d\n", status);
         return 1;
     }
+    fprintf(stdout, "Parse succeed\n");
+    fprintf(stdout, "\n");
+    
+    fprintf(stdout, "GlyphCount = %d\n", font.GlyphCount());
 
     return 0;
 }

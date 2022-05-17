@@ -1,6 +1,7 @@
 #include "ot_font_parser.h"
 #include "scope_guard.h"
 #include "utility.h"
+#include "mac_glyph_names.h"
 
 //------------------------------------------------------------------------------
 
@@ -218,7 +219,10 @@ Status OpenType_Font_Parser::__parsePost()
     post.MaxMemType1  = u4(b + 28);
     font_->glyphNames_.resize(font_->maxp_.NumGlyphs);  // initialize glyphNames_
     if (post.Version == 0x00010000) {
-        // TODO
+        // Use the Macintosh glyph name
+        for (size_t i = 0; i < font_->glyphNames_.size() && i < 258; i++) {
+            font_->glyphNames_[i] = GetMacGlyphName(i);
+        }
         return kOk;
     }
     if (post.Version == 0x00020000) {
@@ -227,7 +231,7 @@ Status OpenType_Font_Parser::__parsePost()
         if (b + glyphNameTableHeaderLen > bend) {
             return kCorruption;
         }
-        // should be the same as numGlyphs in 'maxp' table
+        // Should be the same as numGlyphs in 'maxp' table
         if (u2(b) != font_->maxp_.NumGlyphs) {
             return kCorruption;
         }
@@ -254,7 +258,7 @@ Status OpenType_Font_Parser::__parsePost()
             uint16_t index = glyphNameIndex[i];
             if (index <= 257) {
                 // Use the Macintosh glyph name
-                // TODO
+                font_->glyphNames_[i] = GetMacGlyphName(index);
             } else {
                 // Subtract 258 and use that to index into the list of Pascal strings
                 index -= 258;
