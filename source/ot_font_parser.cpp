@@ -139,29 +139,29 @@ Status OpenType_Font_Parser::__parseHead()
     }
     const uint8_t *b = data_ + head_.offset;
     OpenType_Head &head = font_->head_;
-    head.Version = u4(b);
-    head.FontRevision = u4(b + 4);
+    head.Version            = u4(b);
+    head.FontRevision       = u4(b + 4);
     head.CheckSumAdjustment = u4(b + 8);
-    head.MagicNumber = u4(b + 12);
+    head.MagicNumber        = u4(b + 12);
     if (head.MagicNumber != 0x5F0F3CF5) {
         return kCorruption;
     }
-    head.Flags = u2(b + 16);
-    head.UnitsPerEm = u2(b + 18);
-    head.Created = u8(b + 20);
-    head.Modified = u8(b + 28);
-    head.XMin = i2(b + 36);
-    head.YMin = i2(b + 38);
-    head.XMax = i2(b + 40);
-    head.YMax = i2(b + 42);
-    head.MacStyle = u2(b + 44);
-    head.LowestRecPPEM = u2(b + 46);
-    head.FontDirectionHint = i2(b + 48);
-    head.IndexToLocFormat = i2(b + 50);
+    head.Flags              = u2(b + 16);
+    head.UnitsPerEm         = u2(b + 18);
+    head.Created            = u8(b + 20);
+    head.Modified           = u8(b + 28);
+    head.XMin               = i2(b + 36);
+    head.YMin               = i2(b + 38);
+    head.XMax               = i2(b + 40);
+    head.YMax               = i2(b + 42);
+    head.MacStyle           = u2(b + 44);
+    head.LowestRecPPEM      = u2(b + 46);
+    head.FontDirectionHint  = i2(b + 48);
+    head.IndexToLocFormat   = i2(b + 50);
     if (head.IndexToLocFormat != 0 && head.IndexToLocFormat != 1) {
         return kCorruption;
     }
-    head.GlyphDataFormat = i2(b + 52);
+    head.GlyphDataFormat    = i2(b + 52);
     return kOk;
 }
 
@@ -172,7 +172,7 @@ Status OpenType_Font_Parser::__parseMaxp()
     }
     const uint8_t *b = data_ + maxp_.offset;
     OpenType_Maxp &maxp = font_->maxp_;
-    maxp.Version = u4(b);
+    maxp.Version   = u4(b);
     maxp.NumGlyphs = u2(b + 4);
     if (maxp.Version == 0x00005000) {
         return kOk;
@@ -184,19 +184,19 @@ Status OpenType_Font_Parser::__parseMaxp()
     if (maxp_.length != 32) {
         return kCorruption;
     }
-    maxp.MaxPoints = u2(b + 6);
-    maxp.MaxContours = u2(b + 8);
-    maxp.MaxCompositePoints = u2(b + 10);
-    maxp.MaxCompositeContours = u2(b + 12);
-    maxp.MaxZones = u2(b + 14);
-    maxp.MaxTwilightPoints = u2(b + 16);
-    maxp.MaxStorage = u2(b + 18);
-    maxp.MaxFunctionDefs = u2(b + 20);
-    maxp.MaxInstructionDefs = u2(b + 22);
-    maxp.MaxStackElements = u2(b + 24);
+    maxp.MaxPoints             = u2(b + 6);
+    maxp.MaxContours           = u2(b + 8);
+    maxp.MaxCompositePoints    = u2(b + 10);
+    maxp.MaxCompositeContours  = u2(b + 12);
+    maxp.MaxZones              = u2(b + 14);
+    maxp.MaxTwilightPoints     = u2(b + 16);
+    maxp.MaxStorage            = u2(b + 18);
+    maxp.MaxFunctionDefs       = u2(b + 20);
+    maxp.MaxInstructionDefs    = u2(b + 22);
+    maxp.MaxStackElements      = u2(b + 24);
     maxp.MaxSizeOfInstructions = u2(b + 26);
-    maxp.MaxComponentElements = u2(b + 28);
-    maxp.MaxComponentDepth = u2(b + 30);
+    maxp.MaxComponentElements  = u2(b + 28);
+    maxp.MaxComponentDepth     = u2(b + 30);
     return kOk;
 }
 
@@ -208,15 +208,15 @@ Status OpenType_Font_Parser::__parsePost()
     const uint8_t *b = data_ + post_.offset;
     const uint8_t *bend = b + post_.length;
     OpenType_Post &post = font_->post_;
-    post.Version = u4(b);
-    post.ItalicAngle = u4(b + 4);
-    post.UnderlinePosition = i2(b + 8);
+    post.Version            = u4(b);
+    post.ItalicAngle        = u4(b + 4);
+    post.UnderlinePosition  = i2(b + 8);
     post.UnderlineThickness = i2(b + 10);
-    post.IsFixedPitch = u4(b + 12);
-    post.MinMemType42 = u4(b + 16);
-    post.MaxMemType42 = u4(b + 20);
-    post.MinMemType1  = u4(b + 24);
-    post.MaxMemType1  = u4(b + 28);
+    post.IsFixedPitch       = u4(b + 12);
+    post.MinMemType42       = u4(b + 16);
+    post.MaxMemType42       = u4(b + 20);
+    post.MinMemType1        = u4(b + 24);
+    post.MaxMemType1        = u4(b + 28);
     font_->glyphNames_.resize(font_->maxp_.NumGlyphs);  // initialize glyphNames_
     if (post.Version == 0x00010000) {
         // Use the Macintosh glyph name
@@ -275,6 +275,73 @@ Status OpenType_Font_Parser::__parsePost()
 
 Status OpenType_Font_Parser::__parseOS2()
 {
+    // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6OS2.html
+    // The original TrueType specification had this table at 68 bytes long. 
+    // The first OpenType version had it at 78 bytes long, and the current OpenType version is even larger. 
+    // To determine which kind of table your software is dealing with, 
+    // it is necessary both to consider the table's version and its size.
+    if (os2_.length < 68) {
+        return kCorruption;
+    }
+    const uint8_t *b = data_ + os2_.offset;
+    OpenType_OS2 &os2 = font_->os2_;
+    os2.version             = u2(b);
+    os2.xAvgCharWidth       = i2(b + 2);
+    os2.usWeightClass       = u2(b + 4);
+    os2.usWidthClass        = u2(b + 6);
+    os2.fsType              = u2(b + 8);
+    os2.ySubscriptXSize     = i2(b + 10);
+    os2.ySubscriptYSize     = i2(b + 12);
+    os2.ySubscriptXOffset   = i2(b + 14);
+    os2.ySubscriptYOffset   = i2(b + 16);
+    os2.ySuperscriptXSize   = i2(b + 18);
+    os2.ySuperscriptYSize   = i2(b + 20);
+    os2.ySuperscriptXOffset = i2(b + 22);
+    os2.ySuperscriptYOffset = i2(b + 24);
+    os2.yStrikeoutSize      = i2(b + 26);
+    os2.yStrikeoutPosition  = i2(b + 28);
+    os2.sFamilyClass        = i2(b + 30);
+    memcpy(os2.panose, b + 32, 10);
+    os2.ulUnicodeRange1     = u4(b + 42);
+    os2.ulUnicodeRange2     = u4(b + 46);
+    os2.ulUnicodeRange3     = u4(b + 50);
+    os2.ulUnicodeRange4     = u4(b + 54);
+    os2.achVendID           = u4(b + 58);
+    os2.fsSelection         = u2(b + 62);
+    os2.usFirstCharIndex    = u2(b + 64);
+    os2.usLastCharIndex     = u2(b + 66);
+    if (os2_.length < 78) {
+        return kOk;
+    }
+    os2.sTypoAscender       = i2(b + 68);
+    os2.sTypoDescender      = i2(b + 70);
+    os2.sTypoLineGap        = i2(b + 72);
+    os2.usWinAscent         = u2(b + 74);
+    os2.usWinDescent        = u2(b + 76);
+    if (os2.version >= 0x0001) {
+        if (os2_.length < 86) {
+            return kCorruption;
+        }
+        os2.ulCodePageRange1 = u4(b + 78);
+        os2.ulCodePageRange2 = u4(b + 82);
+    }
+    if (os2.version >= 0x0002) {
+        if (os2_.length < 96) {
+            return kCorruption;
+        }
+        os2.sxHeight      = i2(b + 86);
+        os2.sCapHeight    = i2(b + 88);
+        os2.usDefaultChar = u2(b + 90);
+        os2.usBreakChar   = u2(b + 92);
+        os2.usMaxContext  = u2(b + 94);
+    }
+    if (os2.version >= 0x0005) {
+        if (os2_.length < 100) {
+            return kCorruption;
+        }
+        os2.usLowerOpticalPointSize = u2(b + 96);
+        os2.usUpperOpticalPointSize = u2(b + 98);
+    }
     return kOk;
 }
 
