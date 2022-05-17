@@ -2,6 +2,7 @@
 #include "scope_guard.h"
 #include "utility.h"
 #include "mac_glyph_names.h"
+#include <cassert>
 
 //------------------------------------------------------------------------------
 

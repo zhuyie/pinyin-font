@@ -1,4 +1,5 @@
 #include "ot_font.h"
+#include <cassert>
 
 //------------------------------------------------------------------------------
 
@@ -24,7 +25,7 @@ int OpenType_Font::GlyphCount()
 Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph)
 {
     assert(ppGlyph);
-    if (index < 0 || index >= glyphs_.size())
+    if (index < 0 || index >= (int)glyphs_.size())
         return kInvalidArgs;
     *ppGlyph = glyphs_[index];
     return kOk;
@@ -32,7 +33,7 @@ Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph)
 
 Status OpenType_Font::GlyphName(int index, std::string &name)
 {
-    if (index < 0 || index >= glyphNames_.size())
+    if (index < 0 || index >= (int)glyphNames_.size())
         return kInvalidArgs;
     name = glyphNames_[index];
     return kOk;
@@ -40,7 +41,7 @@ Status OpenType_Font::GlyphName(int index, std::string &name)
 
 Status OpenType_Font::GlyphHorMetric(int index, OpenType_LongHorMetric &metric)
 {
-    if (index < 0 || index >= hmtx_.size())
+    if (index < 0 || index >= (int)hmtx_.size())
         return kInvalidArgs;
     metric = hmtx_[index];
     return kOk;
