@@ -75,7 +75,7 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
             maxp_ = t;
         } else if (memcmp(t.name, "post", 4) == 0) {
             post_ = t;
-        } else if (memcmp(t.name, "os/2", 4) == 0) {
+        } else if (memcmp(t.name, "OS/2", 4) == 0) {
             os2_ = t;
         } else if (memcmp(t.name, "name", 4) == 0) {
             name_ = t;
