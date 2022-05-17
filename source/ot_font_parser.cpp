@@ -201,6 +201,71 @@ Status OpenType_Font_Parser::__parseMaxp()
 
 Status OpenType_Font_Parser::__parsePost()
 {
+    if (post_.length < 32) {
+        return kCorruption;
+    }
+    const uint8_t *b = data_ + post_.offset;
+    const uint8_t *bend = b + post_.length;
+    OpenType_Post &post = font_->post_;
+    post.Version = u4(b);
+    post.ItalicAngle = u4(b + 4);
+    post.UnderlinePosition = i2(b + 8);
+    post.UnderlineThickness = i2(b + 10);
+    post.IsFixedPitch = u4(b + 12);
+    post.MinMemType42 = u4(b + 16);
+    post.MaxMemType42 = u4(b + 20);
+    post.MinMemType1  = u4(b + 24);
+    post.MaxMemType1  = u4(b + 28);
+    font_->glyphNames_.resize(font_->maxp_.NumGlyphs);  // initialize glyphNames_
+    if (post.Version == 0x00010000) {
+        // TODO
+        return kOk;
+    }
+    if (post.Version == 0x00020000) {
+        b += 32;
+        uint32_t glyphNameTableHeaderLen = (font_->maxp_.NumGlyphs + 1) * 2;
+        if (b + glyphNameTableHeaderLen > bend) {
+            return kCorruption;
+        }
+        // should be the same as numGlyphs in 'maxp' table
+        if (u2(b) != font_->maxp_.NumGlyphs) {
+            return kCorruption;
+        }
+        b += 2;
+        std::vector<uint16_t> glyphNameIndex;
+        std::vector<const uint8_t*> stringData;
+        glyphNameIndex.reserve(font_->maxp_.NumGlyphs);
+        stringData.reserve(font_->maxp_.NumGlyphs);
+        // Array of indices into the string data
+        for (uint16_t i = 0; i < font_->maxp_.NumGlyphs; i++) {
+            glyphNameIndex.push_back(u2(b));
+            b += 2;
+        }
+        // Array of PASCAL strings
+        while (b < bend) {
+            uint8_t len = *b;
+            if (b + 1 + len > bend) {
+                return kCorruption;
+            }
+            stringData.push_back(b);
+            b += (1 + len);
+        }
+        for (size_t i = 0; i < glyphNameIndex.size(); i++) {
+            uint16_t index = glyphNameIndex[i];
+            if (index <= 257) {
+                // Use the Macintosh glyph name
+                // TODO
+            } else {
+                // Subtract 258 and use that to index into the list of Pascal strings
+                index -= 258;
+                if (index < stringData.size()) {
+                    const uint8_t *p = stringData[index];
+                    uint8_t len = *p;
+                    font_->glyphNames_[i].assign((const char*)(p + 1), (const char*)(p + 1 + len + 1));
+                }
+            }
+        }
+    }
     return kOk;
 }
 
