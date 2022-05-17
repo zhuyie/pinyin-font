@@ -266,7 +266,7 @@ Status OpenType_Font_Parser::__parsePost()
                 if (index < stringData.size()) {
                     const uint8_t *p = stringData[index];
                     uint8_t len = *p;
-                    font_->glyphNames_[i].assign((const char*)(p + 1), (const char*)(p + 1 + len + 1));
+                    font_->glyphNames_[i].assign((const char*)(p + 1), (const char*)(p + 1 + len));
                 }
             }
         }
