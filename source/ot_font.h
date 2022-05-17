@@ -51,7 +51,7 @@ typedef struct OpenType_Maxp {
     uint16_t MaxInstructionDefs;    // Number of IDEFs.
     uint16_t MaxStackElements;      // Maximum stack depth across Font Program ('fpgm' table), CVT Program ('prep' table) and all glyph instructions (in the 'glyf' table).
     uint16_t MaxSizeOfInstructions; // Maximum byte count for glyph instructions.
-    uint16_t MaxComponentElements;  // Maximum number of components referenced at “top level” for any composite glyph.
+    uint16_t MaxComponentElements;  // Maximum number of components referenced at "top level" for any composite glyph.
     uint16_t MaxComponentDepth;     // Maximum levels of recursion; 1 for simple components.
 } OpenType_Maxp;
 
@@ -135,7 +135,7 @@ typedef struct OpenType_Post {
     // version 2.0 only
 } OpenType_Post;
 
-// OS/2 — OS/2 and Windows Metrics Table
+// OS/2 - OS/2 and Windows Metrics Table
 // https://docs.microsoft.com/en-us/typography/opentype/spec/os2
 // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6OS2.html
 typedef struct OpenType_OS2 {
@@ -183,7 +183,7 @@ typedef struct OpenType_OS2 {
     uint16_t usUpperOpticalPointSize;
 } OpenType_OS2;
 
-// hhea — Horizontal Header Table
+// hhea - Horizontal Header Table
 // https://docs.microsoft.com/en-us/typography/opentype/spec/hhea
 // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6hhea.html
 typedef struct OpenType_Hhea {
