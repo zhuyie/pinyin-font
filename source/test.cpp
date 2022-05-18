@@ -94,6 +94,25 @@ static void testGlyph(const OpenType_Font &font)
 {
     fprintf(stdout, "Glyph:\n");
     fprintf(stdout, "  Count = %d\n", font.GlyphCount());
+    for (int i = 0; i < 10; i++) {
+        int index = std::rand() % font.GlyphCount();
+        OpenType_GlyphHeader *pHeader = NULL;
+        font.Glyph(index, &pHeader);
+        if (pHeader == NULL) {
+            fprintf(stdout, "  Glyph_%d = <NoOutline>\n", index);
+        } else if (pHeader->NumberOfContours >= 0) {
+            OpenType_GlyphSimple *pSimple = (OpenType_GlyphSimple*)pHeader;
+            fprintf(stdout, "  Glyph_%d = Simple{ Contours=%d Points=%d }\n", 
+                index, (int)pSimple->NumberOfContours, (int)pSimple->Points.size());
+        } else {
+            OpenType_GlyphComposite *pComposite = (OpenType_GlyphComposite*)pHeader;
+            fprintf(stdout, "  Glyph_%d = Composite{", index);
+            for (size_t j = 0; j < pComposite->SubGlyphs.size(); j++) {
+                fprintf(stdout, " %d", (int)pComposite->SubGlyphs[j].GlyphIndex);
+            }
+            fprintf(stdout, " }\n");
+        }
+    }
     fprintf(stdout, "\n");
 }
 

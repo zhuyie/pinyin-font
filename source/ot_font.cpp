@@ -19,8 +19,7 @@ OpenType_Font::~OpenType_Font()
 
 int OpenType_Font::GlyphCount() const
 {
-    return maxp_.NumGlyphs;
-    // return (int)glyphs_.size();
+    return (int)glyphs_.size();
 }
 
 Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph) const
@@ -78,6 +77,9 @@ void OpenType_Font::Clear()
     hmtx_.clear();
     for (auto i = glyphs_.begin(); i != glyphs_.end(); i++) {
         OpenType_GlyphHeader *header = *i;
+        if (header == NULL) {  // glyphs which have no outline
+            continue;
+        }
         if (header->NumberOfContours >= 0) {
             OpenType_GlyphSimple *simple = (OpenType_GlyphSimple*)header;
             delete simple;

@@ -105,6 +105,8 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
         return status;
     if ((status = __parseName()) != kOk)
         return status;
+    if ((status = __parseGlyph()) != kOk)
+        return status;
 
     return kOk;
 }
@@ -388,6 +390,278 @@ Status OpenType_Font_Parser::__parseName()
                 record.String[i] = u2(str + i * 2);
             }
         }
+    }
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseGlyph()
+{
+    uint32_t requiredLocaLen = 2 * font_->maxp_.NumGlyphs; // short version
+    if (font_->head_.IndexToLocFormat != 0) {
+        requiredLocaLen *= 2; // long version
+    }
+    if (loca_.length < requiredLocaLen) {
+        return kCorruption;
+    }
+
+    font_->glyphs_.resize(font_->maxp_.NumGlyphs);
+
+    for (uint16_t i = 0; i < font_->maxp_.NumGlyphs; i++) {
+        uint32_t start, end;
+        if (font_->head_.IndexToLocFormat == 0) {
+            // short version
+            start = 2 * (uint32_t)u2(data_ + loca_.offset + 2*i);
+            end = 2 * (uint32_t)u2(data_ + loca_.offset + 2*(i+1));
+        } else {
+            // long version
+            start = u4(data_ + loca_.offset + 4*i);
+            end = u4(data_ + loca_.offset + 4*(i+1));
+        }
+        if (end < start || end > glyf_.length) {
+            return kCorruption;
+        }
+        if (start == end) {
+            // If a glyph has no outline, then loca[n] = loca [n+1].
+            continue;
+        }
+
+        const uint8_t *glyphData = data_ + glyf_.offset + start;
+        size_t glyphLen = end - start;
+        OpenType_GlyphHeader header;
+        Status status = __parseGlyphHeader(glyphData, glyphLen, header);
+        if (status != kOk) {
+            return status;
+        }
+        if (header.NumberOfContours >= 0) {
+            // Simple
+            OpenType_GlyphSimple *pGlyph = new OpenType_GlyphSimple();
+            pGlyph->NumberOfContours = header.NumberOfContours;
+            pGlyph->XMin = header.XMin;
+            pGlyph->YMin = header.YMin;
+            pGlyph->XMax = header.XMax;
+            pGlyph->YMax = header.YMax;
+            status = __parseGlyphSimple(glyphData, glyphLen, *pGlyph);
+            if (status != kOk) {
+                delete pGlyph;
+                return status;
+            }
+            font_->glyphs_[i] = pGlyph;
+        } else {
+            // Composite
+            OpenType_GlyphComposite *pGlyph = new OpenType_GlyphComposite();
+            pGlyph->NumberOfContours = header.NumberOfContours;
+            pGlyph->XMin = header.XMin;
+            pGlyph->YMin = header.YMin;
+            pGlyph->XMax = header.XMax;
+            pGlyph->YMax = header.YMax;
+            status = __parseGlyphComposite(glyphData, glyphLen, *pGlyph);
+            if (status != kOk) {
+                delete pGlyph;
+                return status;
+            }
+            font_->glyphs_[i] = pGlyph;
+        }
+    }
+
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseGlyphHeader(const uint8_t *data, size_t len, OpenType_GlyphHeader &header)
+{
+    if (len < 10) {
+        return kCorruption;
+    }
+    header.NumberOfContours = i2(data);
+    header.XMin = i2(data + 2);
+    header.YMin = i2(data + 4);
+    header.XMax = i2(data + 6);
+    header.YMax = i2(data + 8);
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseGlyphSimple(const uint8_t *data, size_t len, OpenType_GlyphSimple &simple)
+{
+    // skip the glyph header
+    size_t parsed = 10;
+    // endPtsOfContours
+    if (simple.NumberOfContours > 0) {
+        if (parsed + 2 * simple.NumberOfContours > len) {
+            return kCorruption;
+        }
+        simple.EndPtsOfContours.reserve(simple.NumberOfContours);
+        for (auto i = 0; i < simple.NumberOfContours; i++) {
+            uint16_t n = u2(data + parsed + i * 2);
+            simple.EndPtsOfContours.push_back(n);
+        }
+        parsed += 2 * simple.NumberOfContours;
+    }
+    // instructions
+    if (parsed + 2 > len) {
+        return kCorruption;
+    }
+    uint16_t instructionLength = u2(data + parsed);
+    parsed += 2;
+    if (instructionLength > 0) {
+        if (parsed + instructionLength > len) {
+            return kCorruption;
+        }
+        simple.Instructions.reserve(instructionLength);
+        simple.Instructions.assign(data + parsed, data + parsed + instructionLength);
+        parsed += instructionLength;
+    }
+    if (simple.NumberOfContours == 0) {
+        return kOk;
+    }
+    uint16_t numberOfPoints = simple.EndPtsOfContours.back() + 1;
+    simple.Points.resize(numberOfPoints);
+    // flags
+    for (auto i = 0; i < numberOfPoints; i++) {
+        if (parsed + 1 > len) {
+            return kCorruption;
+        }
+        uint8_t flags = data[parsed];
+        parsed++;
+        simple.Points[i].Flags = flags;
+        if (flags & OpenType_FlagRepeat) {
+            if (parsed + 1 > len) {
+                return kCorruption;
+            }
+            uint8_t count = data[parsed];
+            parsed++;
+            for (; count > 0; count--) {
+                i++;
+                simple.Points[i].Flags = flags;
+            }
+        }
+    }
+    // xCoordinates
+    int16_t x = 0;
+    for (auto i = 0; i < numberOfPoints; i++) {
+        int16_t dx = 0;
+        uint8_t flags = simple.Points[i].Flags;
+        if (flags & OpenType_FlagXShortVector) {
+            if (parsed + 1 > len) {
+                return kCorruption;
+            }
+            dx = data[parsed];
+            parsed++;
+            if ((flags & OpenType_FlagPositiveXShortVector) == 0) {
+                dx = -dx;
+            }
+        } else if ((flags & OpenType_FlagXIsSame) == 0) {
+            if (parsed + 2 > len) {
+                return kCorruption;
+            }
+            dx = i2(data + parsed);
+            parsed += 2;
+        }
+        x += dx;
+        simple.Points[i].X = x;
+    }
+    // yCoordinates
+    int16_t y = 0;
+    for (auto i = 0; i < numberOfPoints; i++) {
+        int16_t dy = 0;
+        uint8_t flags = simple.Points[i].Flags;
+        if (flags & OpenType_FlagYShortVector) {
+            if (parsed + 1 > len) {
+                return kCorruption;
+            }
+            dy = data[parsed];
+            parsed++;
+            if ((flags & OpenType_FlagPositiveYShortVector) == 0) {
+                dy = -dy;
+            }
+        } else if ((flags & OpenType_FlagYIsSame) == 0) {
+            if (parsed + 2 > len) {
+                return kCorruption;
+            }
+            dy = i2(data + parsed);
+            parsed += 2;
+        }
+        y += dy;
+        simple.Points[i].Y = y;
+    }
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseGlyphComposite(const uint8_t *data, size_t len, OpenType_GlyphComposite &composite)
+{
+    // skip the glyph header
+    size_t parsed = 10;
+    // components
+    uint16_t flags = 0;
+    for (;;) {
+        OpenType_GlyphComponent subglyph;
+        // flags && glyphIndex
+        if (parsed + 4 > len) {
+            return kCorruption;
+        }
+        flags = u2(data + parsed);
+        subglyph.Flags = flags;
+        parsed += 2;
+        subglyph.GlyphIndex = u2(data + parsed);
+        parsed += 2;
+        // argument1 && argument2
+        if (flags & OpenType_FlagArg1And2AreWords) {
+            if (parsed + 4 > len) {
+                return kCorruption;
+            }
+            subglyph.Arg1 = i2(data + parsed);
+            subglyph.Arg2 = i2(data + parsed + 2);
+            parsed += 4;
+        } else {
+            if (parsed + 2 > len) {
+                return kCorruption;
+            }
+            subglyph.Arg1 = data[parsed];
+            subglyph.Arg2 = data[parsed + 1];
+            parsed += 2;
+        }
+        // transformation
+        if (flags & OpenType_FlagWeHaveAScale) {
+            if (parsed + 2 > len) {
+                return kCorruption;
+            }
+            subglyph.Transform[0] = i2(data + parsed);
+            subglyph.Transform[3] = subglyph.Transform[0];
+            parsed += 2;
+        } else if (flags & OpenType_FlagWeHaveAnXAndYScale) {
+            if (parsed + 4 > len) {
+                return kCorruption;
+            }
+            subglyph.Transform[0] = i2(data + parsed);
+            subglyph.Transform[3] = i2(data + parsed + 2);
+            parsed += 4;
+        } else if (flags & OpenType_FlagWeHaveATwoByTwo) {
+            if (parsed + 8 > len) {
+                return kCorruption;
+            }
+            subglyph.Transform[0] = i2(data + parsed);
+            subglyph.Transform[1] = i2(data + parsed + 2);
+            subglyph.Transform[2] = i2(data + parsed + 4);
+            subglyph.Transform[3] = i2(data + parsed + 6);
+            parsed += 8;
+        }
+
+        composite.SubGlyphs.push_back(subglyph);
+
+        if (!(flags & OpenType_FlagMoreComponents)) {
+            break;
+        }
+    }
+    // instructions
+    if (flags & OpenType_FlagWeHaveInstructions) {
+        if (parsed + 2 > len) {
+            return kCorruption;
+        }
+        uint16_t instructionLen = u2(data + parsed);
+        parsed += 2;
+        if (instructionLen == 0 || parsed + instructionLen > len) {
+            return kCorruption;
+        }
+        composite.Instructions.assign(data+parsed, data+parsed+instructionLen);
+        parsed += instructionLen;
     }
     return kOk;
 }
