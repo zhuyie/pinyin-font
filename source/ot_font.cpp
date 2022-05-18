@@ -17,12 +17,12 @@ OpenType_Font::~OpenType_Font()
     Clear();
 }
 
-int OpenType_Font::GlyphCount()
+int OpenType_Font::GlyphCount() const
 {
     return (int)glyphs_.size();
 }
 
-Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph)
+Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph) const
 {
     assert(ppGlyph);
     if (index < 0 || index >= (int)glyphs_.size())
@@ -31,7 +31,7 @@ Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph)
     return kOk;
 }
 
-Status OpenType_Font::GlyphName(int index, std::string &name)
+Status OpenType_Font::GlyphName(int index, std::string &name) const
 {
     if (index < 0 || index >= (int)glyphNames_.size())
         return kInvalidArgs;
@@ -39,7 +39,7 @@ Status OpenType_Font::GlyphName(int index, std::string &name)
     return kOk;
 }
 
-Status OpenType_Font::GlyphHorMetric(int index, OpenType_LongHorMetric &metric)
+Status OpenType_Font::GlyphHorMetric(int index, OpenType_LongHorMetric &metric) const
 {
     if (index < 0 || index >= (int)hmtx_.size())
         return kInvalidArgs;
@@ -47,7 +47,7 @@ Status OpenType_Font::GlyphHorMetric(int index, OpenType_LongHorMetric &metric)
     return kOk;
 }
 
-uint16_t OpenType_Font::CharToGlyphIndex(uint32_t charcode)
+uint16_t OpenType_Font::CharToGlyphIndex(uint32_t charcode) const
 {
     auto iter = char2index_.find(charcode);
     if (iter != char2index_.end()) {
@@ -56,9 +56,9 @@ uint16_t OpenType_Font::CharToGlyphIndex(uint32_t charcode)
     return 0;
 }
 
-Status OpenType_Font::Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records)
+Status OpenType_Font::Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records) const
 {
-    assert(records.empty());
+    records.clear();
     auto range = names_.equal_range(nameID);
     for (auto i = range.first; i != range.second; i++) {
         records.push_back(i->second);

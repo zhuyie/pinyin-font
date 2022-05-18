@@ -237,20 +237,20 @@ public:
     OpenType_Font();
     ~OpenType_Font();
 
-    const OpenType_Head& Head() { return head_; }
-    const OpenType_Maxp& Maxp() { return maxp_; }
-    const OpenType_Post& Post() { return post_; }
-    const OpenType_OS2&  OS2()  { return os2_;  }
-    const OpenType_Hhea& Hhea() { return hhea_; }
+    const OpenType_Head& Head() const { return head_; }
+    const OpenType_Maxp& Maxp() const { return maxp_; }
+    const OpenType_Post& Post() const { return post_; }
+    const OpenType_OS2&  OS2()  const { return os2_;  }
+    const OpenType_Hhea& Hhea() const { return hhea_; }
 
-    int GlyphCount();
-    Status Glyph(int index, OpenType_GlyphHeader **ppGlyph);
-    Status GlyphName(int index, std::string &name);
-    Status GlyphHorMetric(int index, OpenType_LongHorMetric &metric);
+    int GlyphCount() const;
+    Status Glyph(int index, OpenType_GlyphHeader **ppGlyph) const;
+    Status GlyphName(int index, std::string &name) const;
+    Status GlyphHorMetric(int index, OpenType_LongHorMetric &metric) const;
 
-    uint16_t CharToGlyphIndex(uint32_t charcode);
+    uint16_t CharToGlyphIndex(uint32_t charcode) const;
 
-    Status Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records);
+    Status Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records) const;
 
     void Clear();
 
