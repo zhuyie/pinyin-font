@@ -1,5 +1,7 @@
 #include "ot_font_parser.h"
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
 
 static void __printNameRecords(const char *name, const std::vector<OpenType_NameRecord> &records)
 {
@@ -43,6 +45,22 @@ static void testName(const OpenType_Font &font)
     fprintf(stdout, "\n");
 } 
 
+static void testPost(const OpenType_Font &font)
+{
+    fprintf(stdout, "Post:\n");
+    fprintf(stdout, "  Version = 0x%08x\n", font.Post().Version);
+    fprintf(stdout, "  IsFixedPitch = %u\n", (unsigned int)font.Post().IsFixedPitch);
+    
+    std::string name;
+    for (int i = 0; i < 10; i++) {
+        int index = std::rand() % font.GlyphCount();
+        font.GlyphName(index, name);
+        fprintf(stdout, "  GlyphName_%d = %s\n", index, name.c_str());
+    }
+
+    fprintf(stdout, "\n");
+}
+
 static void testGlyph(const OpenType_Font &font)
 {
     fprintf(stdout, "Glyph:\n");
@@ -58,6 +76,8 @@ int main(int argc, char* argv[])
     }
     fprintf(stdout, "filename = %s\n", filename);
 
+    std::srand(std::time(0));
+
     OpenType_Font font;
     OpenType_Font_Parser parser;
     Status status = parser.Parse(filename, &font);
@@ -69,6 +89,7 @@ int main(int argc, char* argv[])
     fprintf(stdout, "\n");
     
     testName(font);
+    testPost(font);
     testGlyph(font);
 
     return 0;

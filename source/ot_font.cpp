@@ -19,7 +19,8 @@ OpenType_Font::~OpenType_Font()
 
 int OpenType_Font::GlyphCount() const
 {
-    return (int)glyphs_.size();
+    return maxp_.NumGlyphs;
+    // return (int)glyphs_.size();
 }
 
 Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph) const
