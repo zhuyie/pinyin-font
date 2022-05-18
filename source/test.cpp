@@ -3,6 +3,35 @@
 #include <cstdlib>
 #include <ctime>
 
+static void testBasicInfo(const OpenType_Font &font)
+{
+    const OpenType_Head &head = font.Head();
+    fprintf(stdout, "Head:\n");
+    fprintf(stdout, "  Version = 0x%08x\n", head.Version);
+    fprintf(stdout, "  Flags = 0x%04x\n", (unsigned int)head.Flags);
+    fprintf(stdout, "  UnitsPerEm = %d\n", (int)head.UnitsPerEm);
+    fprintf(stdout, "  MacStyle = 0x%04x\n", (unsigned int)head.MacStyle);
+    fprintf(stdout, "\n");
+    const OpenType_Maxp &maxp = font.Maxp();
+    fprintf(stdout, "Maxp:\n");
+    fprintf(stdout, "  Version = 0x%08x\n", maxp.Version);
+    fprintf(stdout, "  NumGlyphs = %d\n", (int)maxp.NumGlyphs);
+    fprintf(stdout, "  MaxContours = %d\n", (int)maxp.MaxContours);
+    fprintf(stdout, "  MaxCompositePoints = %d\n", (int)maxp.MaxCompositePoints);
+    fprintf(stdout, "  MaxCompositeContours = %d\n", (int)maxp.MaxCompositeContours);
+    fprintf(stdout, "  MaxComponentElements = %d\n", (int)maxp.MaxComponentElements);
+    fprintf(stdout, "  MaxComponentDepth = %d\n", (int)maxp.MaxComponentDepth);
+    fprintf(stdout, "\n");
+    const OpenType_OS2 &os2 = font.OS2();
+    fprintf(stdout, "OS/2:\n");
+    fprintf(stdout, "  version = %d\n", (int)os2.version);
+    fprintf(stdout, "  xAvgCharWidth = %d\n", (int)os2.xAvgCharWidth);
+    fprintf(stdout, "  usWeightClass = %u\n", (unsigned int)os2.usWeightClass);
+    fprintf(stdout, "  usWidthClass = %u\n", (unsigned int)os2.usWidthClass);
+    fprintf(stdout, "  fsType = 0x%04x\n", (unsigned int)os2.fsType);
+    fprintf(stdout, "\n");
+}
+
 static void __printNameRecords(const char *name, const std::vector<OpenType_NameRecord> &records)
 {
     if (records.size() > 0) {
@@ -43,7 +72,7 @@ static void testName(const OpenType_Font &font)
     __printNameRecords("Description", nameRecords);
 
     fprintf(stdout, "\n");
-} 
+}
 
 static void testPost(const OpenType_Font &font)
 {
@@ -87,7 +116,8 @@ int main(int argc, char* argv[])
     }
     fprintf(stdout, "Parse succeed\n");
     fprintf(stdout, "\n");
-    
+
+    testBasicInfo(font);
     testName(font);
     testPost(font);
     testGlyph(font);
