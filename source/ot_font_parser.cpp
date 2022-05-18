@@ -3,6 +3,7 @@
 #include "utility.h"
 #include "mac_glyph_names.h"
 #include <cassert>
+#include <utility>
 
 //------------------------------------------------------------------------------
 
@@ -348,6 +349,46 @@ Status OpenType_Font_Parser::__parseOS2()
 
 Status OpenType_Font_Parser::__parseName()
 {
+    if (name_.length < 6) {
+        return kCorruption;
+    }
+    const uint8_t *b = data_ + name_.offset;
+    const uint8_t *bend = b + name_.length;
+    uint16_t version       = u2(b);
+    uint16_t count         = u2(b + 2);
+    uint16_t storageOffset = i2(b + 4);
+    for (uint16_t i = 0; i < count; i++) {
+        const uint8_t *entry = b + 6 + i * 12;
+        if (entry > bend) {
+            return kCorruption;
+        }
+        uint16_t platformID   = u2(entry);
+        uint16_t encodingID   = u2(entry + 2);
+        uint16_t languageID   = u2(entry + 4);
+        uint16_t nameID       = u2(entry + 6);
+        uint16_t length       = u2(entry + 8);  // in bytes
+        uint16_t stringOffset = u2(entry + 10);
+        // Strings for the platform 0(Unicode) and 3(Windows) must be encoded in UTF-16BE.
+        if (platformID == 0 || platformID == 3) {
+            const uint8_t *str = b + storageOffset + stringOffset;
+            if (str + length > bend) {
+                return kCorruption;
+            }
+            auto it = font_->names_.insert(
+                decltype(font_->names_)::value_type(nameID, OpenType_NameRecord())
+            );
+            OpenType_NameRecord &record = it->second;
+            record.PlatformID = platformID;
+            record.EncodingID = encodingID;
+            record.LanguageID = languageID;
+            record.NameID     = nameID;
+            length /= 2;
+            record.String.resize(length);
+            for (uint16_t i = 0; i < length; i++) {
+                record.String[i] = u2(str + i * 2);
+            }
+        }
+    }
     return kOk;
 }
 

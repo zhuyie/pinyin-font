@@ -1,6 +1,55 @@
 #include "ot_font_parser.h"
 #include <cstdio>
 
+static void __printNameRecords(const char *name, const std::vector<OpenType_NameRecord> &records)
+{
+    if (records.size() > 0) {
+        for (size_t i = 0; i < records.size(); i++) {
+            fprintf(stdout, "  %s = %ls (%d, %d, %d)\n", 
+                name, records[i].String.c_str(), records[i].PlatformID, records[i].EncodingID, records[i].LanguageID);
+        }
+    } else {
+        fprintf(stdout, "  %s = <NotFound>\n", name);
+    }
+}
+
+static void testName(const OpenType_Font &font)
+{
+    std::vector<OpenType_NameRecord> nameRecords;
+
+    fprintf(stdout, "Name:\n");
+
+    font.Name(1, nameRecords);  // Font Family name
+    __printNameRecords("FamilyName", nameRecords);
+    font.Name(2, nameRecords);  // Font Subfamily name
+    __printNameRecords("SubfamilyName", nameRecords);
+    font.Name(3, nameRecords);  // Unique font identifier
+    __printNameRecords("UniqueFontIdentifier", nameRecords);
+    font.Name(4, nameRecords);  // Full font name
+    __printNameRecords("FullName", nameRecords);
+    font.Name(5, nameRecords);  // Version string
+    __printNameRecords("VersionString", nameRecords);
+    font.Name(6, nameRecords);  // PostScript name
+    __printNameRecords("PostScriptName", nameRecords);
+    font.Name(7, nameRecords);  // Trademark
+    __printNameRecords("Trademark", nameRecords);
+    font.Name(8, nameRecords);  // Manufacturer Name
+    __printNameRecords("ManufacturerName", nameRecords);
+    font.Name(9, nameRecords);  // Designer
+    __printNameRecords("Designer", nameRecords);
+    font.Name(10, nameRecords);  // Description
+    __printNameRecords("Description", nameRecords);
+
+    fprintf(stdout, "\n");
+} 
+
+static void testGlyph(const OpenType_Font &font)
+{
+    fprintf(stdout, "Glyph:\n");
+    fprintf(stdout, "  Count = %d\n", font.GlyphCount());
+    fprintf(stdout, "\n");
+}
+
 int main(int argc, char* argv[])
 {
     const char *filename = "input.ttf";
@@ -19,7 +68,8 @@ int main(int argc, char* argv[])
     fprintf(stdout, "Parse succeed\n");
     fprintf(stdout, "\n");
     
-    fprintf(stdout, "GlyphCount = %d\n", font.GlyphCount());
+    testName(font);
+    testGlyph(font);
 
     return 0;
 }
