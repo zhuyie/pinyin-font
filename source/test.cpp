@@ -137,6 +137,16 @@ static void testHmtx(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
+static void testCmap(const OpenType_Font &font)
+{
+    fprintf(stdout, "Cmap:\n");
+    fprintf(stdout, "  U+0061 -> %d\n", (int)font.CharToGlyphIndex(0x0061));  // Latin Small Letter A
+    fprintf(stdout, "  U+0030 -> %d\n", (int)font.CharToGlyphIndex(0x0030));  // Digit Zero
+    fprintf(stdout, "  U+4E2D -> %d\n", (int)font.CharToGlyphIndex(0x4E2D));  // Ideograph central; center, middle; in the midst of; hit (target); attain CJK
+    fprintf(stdout, "  U+0304 -> %d\n", (int)font.CharToGlyphIndex(0x0304));  // Combining Macron
+    fprintf(stdout, "\n");
+}
+
 int main(int argc, char* argv[])
 {
     const char *filename = "input.ttf";
@@ -162,6 +172,7 @@ int main(int argc, char* argv[])
     testPost(font);
     testGlyph(font);
     testHmtx(font);
+    testCmap(font);
 
     return 0;
 }
