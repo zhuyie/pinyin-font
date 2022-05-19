@@ -4,6 +4,7 @@
 #include "mac_glyph_names.h"
 #include <cassert>
 #include <utility>
+#include <memory>
 
 //------------------------------------------------------------------------------
 
@@ -106,6 +107,8 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
     if ((status = __parseName()) != kOk)
         return status;
     if ((status = __parseGlyph()) != kOk)
+        return status;
+    if ((status = __parseHmtx()) != kOk)
         return status;
 
     return kOk;
@@ -434,7 +437,7 @@ Status OpenType_Font_Parser::__parseGlyph()
         }
         if (header.NumberOfContours >= 0) {
             // Simple
-            OpenType_GlyphSimple *pGlyph = new OpenType_GlyphSimple();
+            std::unique_ptr<OpenType_GlyphSimple> pGlyph(new OpenType_GlyphSimple());
             pGlyph->NumberOfContours = header.NumberOfContours;
             pGlyph->XMin = header.XMin;
             pGlyph->YMin = header.YMin;
@@ -442,13 +445,12 @@ Status OpenType_Font_Parser::__parseGlyph()
             pGlyph->YMax = header.YMax;
             status = __parseGlyphSimple(glyphData, glyphLen, *pGlyph);
             if (status != kOk) {
-                delete pGlyph;
                 return status;
             }
-            font_->glyphs_[i] = pGlyph;
+            font_->glyphs_[i] = pGlyph.release();
         } else {
             // Composite
-            OpenType_GlyphComposite *pGlyph = new OpenType_GlyphComposite();
+            std::unique_ptr<OpenType_GlyphComposite> pGlyph(new OpenType_GlyphComposite());
             pGlyph->NumberOfContours = header.NumberOfContours;
             pGlyph->XMin = header.XMin;
             pGlyph->YMin = header.YMin;
@@ -456,10 +458,9 @@ Status OpenType_Font_Parser::__parseGlyph()
             pGlyph->YMax = header.YMax;
             status = __parseGlyphComposite(glyphData, glyphLen, *pGlyph);
             if (status != kOk) {
-                delete pGlyph;
                 return status;
             }
-            font_->glyphs_[i] = pGlyph;
+            font_->glyphs_[i] = pGlyph.release();
         }
     }
 
@@ -663,6 +664,58 @@ Status OpenType_Font_Parser::__parseGlyphComposite(const uint8_t *data, size_t l
         composite.Instructions.assign(data+parsed, data+parsed+instructionLen);
         parsed += instructionLen;
     }
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseHmtx()
+{
+    if (hhea_.length < 36) {
+        return kCorruption;
+    }
+    const uint8_t *b = data_ + hhea_.offset;
+    OpenType_Hhea &hhea = font_->hhea_;
+    hhea.MajorVersion        = u2(b);
+    hhea.MinorVersion        = u2(b + 2);
+    hhea.Ascender            = i2(b + 4);
+    hhea.Descender           = i2(b + 6);
+    hhea.LineGap             = i2(b + 8);
+    hhea.AdvanceWidthMax     = u2(b + 10);
+    hhea.MinLeftSideBearing  = i2(b + 12);
+    hhea.MinRightSideBearing = i2(b + 14);
+    hhea.XMaxExtent          = i2(b + 16);
+    hhea.CaretSlopeRise      = i2(b + 18);
+    hhea.CaretSlopeRun       = i2(b + 20);
+    hhea.CaretOffset         = i2(b + 22);
+    hhea.Reserved0           = i2(b + 24);
+    hhea.Reserved1           = i2(b + 26);
+    hhea.Reserved2           = i2(b + 28);
+    hhea.Reserved3           = i2(b + 30);
+    hhea.MetricDataFormat    = i2(b + 32);
+    hhea.NumberOfHMetrics    = u2(b + 34);
+
+    if (hhea.NumberOfHMetrics < 1) {
+        return kCorruption;
+    }
+    uint32_t requiredHmtxLen = font_->maxp_.NumGlyphs * 2 + hhea.NumberOfHMetrics * 2;
+    if (hmtx_.length < requiredHmtxLen) {
+        return kCorruption;
+    }
+    b = data_ + hmtx_.offset;
+    font_->hmtx_.resize(font_->maxp_.NumGlyphs);
+    for (uint16_t i = 0; i < hhea.NumberOfHMetrics; i++) {
+        OpenType_LongHorMetric &entry = font_->hmtx_[i];
+        entry.AdvanceWidth = u2(b);
+        entry.LSB          = i2(b + 2);
+        b += 4;
+    }
+    uint16_t lastAdvanceWidth = font_->hmtx_[hhea.NumberOfHMetrics - 1].AdvanceWidth;
+    for (uint16_t i = hhea.NumberOfHMetrics; i < font_->maxp_.NumGlyphs; i++) {
+        OpenType_LongHorMetric &entry = font_->hmtx_[i];
+        entry.AdvanceWidth = lastAdvanceWidth;
+        entry.LSB = i2(b);
+        b += 2;
+    }
+
     return kOk;
 }
 

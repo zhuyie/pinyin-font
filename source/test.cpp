@@ -116,6 +116,27 @@ static void testGlyph(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
+static void testHmtx(const OpenType_Font &font)
+{
+    fprintf(stdout, "Hhea+Hmtx:\n");
+    fprintf(stdout, "  Ascender = %d\n", (int)font.Hhea().Ascender);
+    fprintf(stdout, "  Descender = %d\n", (int)font.Hhea().Descender);
+    fprintf(stdout, "  LineGap = %d\n", (int)font.Hhea().LineGap);
+    fprintf(stdout, "  AdvanceWidthMax = %d\n", (int)font.Hhea().AdvanceWidthMax);
+    fprintf(stdout, "  MinLeftSideBearing = %d\n", (int)font.Hhea().MinLeftSideBearing);
+    fprintf(stdout, "  MinRightSideBearing = %d\n", (int)font.Hhea().MinRightSideBearing);
+    fprintf(stdout, "  XMaxExtent = %d\n", (int)font.Hhea().XMaxExtent);
+    fprintf(stdout, "  NumberOfHMetrics = %d\n", (int)font.Hhea().NumberOfHMetrics);
+    for (int i = 0; i < 10; i++) {
+        int index = std::rand() % font.GlyphCount();
+        OpenType_LongHorMetric mtx;
+        font.GlyphHorMetric(index, mtx);
+        fprintf(stdout, "  Glyph_%d = { Advance=%d, LSB=%d }\n", 
+            index, (int)mtx.AdvanceWidth, (int)mtx.LSB);
+    }
+    fprintf(stdout, "\n");
+}
+
 int main(int argc, char* argv[])
 {
     const char *filename = "input.ttf";
@@ -140,6 +161,7 @@ int main(int argc, char* argv[])
     testName(font);
     testPost(font);
     testGlyph(font);
+    testHmtx(font);
 
     return 0;
 }

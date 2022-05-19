@@ -51,6 +51,7 @@ private:
     Status __parseGlyphHeader(const uint8_t *data, size_t len, OpenType_GlyphHeader &header);
     Status __parseGlyphSimple(const uint8_t *data, size_t len, OpenType_GlyphSimple &simple);
     Status __parseGlyphComposite(const uint8_t *data, size_t len, OpenType_GlyphComposite &composite);
+    Status __parseHmtx();
     Status __parseCmap();
 };
 
