@@ -48,11 +48,9 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
     offset += 4;
     switch (magic) {
     case 0x00010000:
-        break;
+    case 0x4F54544F: // 'OTTO'
     case 0x74727565: // 'true'
         break;
-    case 0x4F54544F: // 'OTTO'
-        return kNotSupported;
     default:
         return kCorruption;
     }
@@ -95,6 +93,10 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
         } else if (memcmp(t.name, "cmap", 4) == 0) {
             cmap_ = t;
         }
+    }
+    // CFF font not supported yet
+    if (loca_.length == 0 || glyf_.length == 0) {
+        return kNotSupported;
     }
 
     if ((status = __parseHead()) != kOk)
