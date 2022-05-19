@@ -13,7 +13,12 @@ add_library(pinyinfont
     source/ot_font.h
     source/ot_font.cpp
     source/ot_font_parser.h
-    source/ot_font_parser.cpp)
+    source/ot_font_parser.cpp
+    source/ot_cmap.h
+    source/ot_cmap_format0.cpp
+    source/ot_cmap_format4.cpp
+    source/ot_cmap_format6.cpp
+    source/ot_cmap_format12.cpp)
 target_include_directories(pinyinfont
     PRIVATE "include")
 if (MSVC)

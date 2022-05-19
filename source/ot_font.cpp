@@ -49,9 +49,8 @@ Status OpenType_Font::GlyphHorMetric(int index, OpenType_LongHorMetric &metric) 
 
 uint16_t OpenType_Font::CharToGlyphIndex(uint32_t charcode) const
 {
-    auto iter = char2index_.find(charcode);
-    if (iter != char2index_.end()) {
-        return iter->second;
+    if (char2index_) {
+        return char2index_->Query(charcode);
     }
     return 0;
 }
@@ -90,7 +89,7 @@ void OpenType_Font::Clear()
     }
     glyphs_.clear();
     glyphNames_.clear();
-    char2index_.clear();
+    char2index_.reset(nullptr);
     names_.clear();
 }
 

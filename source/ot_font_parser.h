@@ -53,6 +53,7 @@ private:
     Status __parseGlyphComposite(const uint8_t *data, size_t len, OpenType_GlyphComposite &composite);
     Status __parseHmtx();
     Status __parseCmap();
+    Status __parseCmapSubtable(const uint8_t *start, const uint8_t *end, uint16_t platformId, uint16_t encodingId);
 };
 
 //------------------------------------------------------------------------------

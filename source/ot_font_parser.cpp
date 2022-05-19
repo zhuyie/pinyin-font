@@ -2,6 +2,7 @@
 #include "scope_guard.h"
 #include "utility.h"
 #include "mac_glyph_names.h"
+#include "ot_cmap.h"
 #include <cassert>
 #include <utility>
 #include <memory>
@@ -109,6 +110,8 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
     if ((status = __parseGlyph()) != kOk)
         return status;
     if ((status = __parseHmtx()) != kOk)
+        return status;
+    if ((status = __parseCmap()) != kOk)
         return status;
 
     return kOk;
@@ -721,5 +724,83 @@ Status OpenType_Font_Parser::__parseHmtx()
 
 Status OpenType_Font_Parser::__parseCmap()
 {
+    if (cmap_.length < 4) {
+        return kCorruption;
+    }
+    const uint16_t cbEncodingRecord = 8;
+    const uint8_t *b = data_ + cmap_.offset;
+    // skip table version
+    uint16_t numTables = u2(b + 2);
+    if (cmap_.length < 4 + numTables * cbEncodingRecord) {
+        return kCorruption;
+    }
+    // search for best subtable
+    int bestPriority = 0;
+    uint16_t bestPlatform = 0;
+    uint16_t bestEncoding = 0;
+    uint32_t bestOffset = 0;
+    for (uint16_t i = 0; i < numTables; i++) {
+        uint16_t platformId = u2(b + 4 + i * cbEncodingRecord);
+        uint16_t encodingId = u2(b + 4 + i * cbEncodingRecord + 2);
+        uint32_t offset     = u4(b + 4 + i * cbEncodingRecord + 4);
+        if (offset >= cmap_.length) {
+            return kCorruption;
+        }
+        int priority = 0;
+        if (platformId == 0 && encodingId == 3) {  // Platform=Unicode, Encoding=Unicode_BMP
+            priority = 1;
+        }
+        if (platformId == 3 && encodingId == 1) {  // Platform=Windows, Encoding=Unicode_BMP
+            priority = 2;
+        }
+        if (platformId == 0 && encodingId == 4) {  // Platform=Unicode, Encoding=Unicode_Full
+            priority = 3;
+        }
+        if (platformId == 3 && encodingId == 10) { // Platform=Windows, Encoding=Unicode_Full
+            priority = 4;
+        }
+        if (priority > bestPriority) {
+            bestPriority = priority;
+            bestPlatform = platformId;
+            bestEncoding = encodingId;
+            bestOffset   = offset;
+        }
+    }
+    if (bestPriority == 0) {
+        return kNotSupported;
+    }
+    const uint8_t *start = b + bestOffset;
+    const uint8_t *end = b + cmap_.length;
+    return __parseCmapSubtable(start, end, bestPlatform, bestEncoding);
+}
+
+Status OpenType_Font_Parser::__parseCmapSubtable(const uint8_t *start, const uint8_t *end, uint16_t platformId, uint16_t encodingId)
+{
+    const uint8_t *b = start;
+    if (b + 2 > end) {
+        return kCorruption;
+    }
+    uint16_t format = u2(b);
+    b += 2;
+
+    std::unique_ptr<CmapSubtable> subtable;
+    if (format == 0) {
+        subtable = CreateCmapSubtableFormat0(platformId, encodingId);
+    } else if (format == 4) {
+        subtable = CreateCmapSubtableFormat4(platformId, encodingId);
+    } else if (format == 6) {
+        subtable = CreateCmapSubtableFormat6(platformId, encodingId);
+    } else if (format == 12) {
+        subtable = CreateCmapSubtableFormat12(platformId, encodingId);
+    } else {
+        return kNotSupported;
+    }
+
+    Status status = subtable->Parse(b, end);
+    if (status != kOk) {
+        return status;
+    }
+
+    font_->char2index_ = std::move(subtable);
     return kOk;
 }

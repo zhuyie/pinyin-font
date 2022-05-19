@@ -2,10 +2,12 @@
 #define __PINYIN_FONT_OT_FONT_H__
 
 #include "status.h"
+#include "ot_cmap.h"
 #include <cstdint>
 #include <string>
 #include <vector>
 #include <map>
+#include <memory>
 
 //------------------------------------------------------------------------------
 #pragma pack(push, 1)
@@ -263,7 +265,7 @@ private:
     std::vector<OpenType_LongHorMetric> hmtx_;
     std::vector<OpenType_GlyphHeader*> glyphs_;
     std::vector<std::string> glyphNames_;
-    std::map<uint32_t, uint16_t> char2index_;
+    std::unique_ptr<CmapSubtable> char2index_;
     std::multimap<uint16_t, OpenType_NameRecord> names_;
 };
 
