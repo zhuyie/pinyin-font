@@ -16,6 +16,7 @@ static void testBasicInfo(const OpenType_Font &font)
     fprintf(stdout, "Maxp:\n");
     fprintf(stdout, "  Version = 0x%08x\n", maxp.Version);
     fprintf(stdout, "  NumGlyphs = %d\n", (int)maxp.NumGlyphs);
+    fprintf(stdout, "  MaxPoints = %d\n", (int)maxp.MaxPoints);
     fprintf(stdout, "  MaxContours = %d\n", (int)maxp.MaxContours);
     fprintf(stdout, "  MaxCompositePoints = %d\n", (int)maxp.MaxCompositePoints);
     fprintf(stdout, "  MaxCompositeContours = %d\n", (int)maxp.MaxCompositeContours);
@@ -164,7 +165,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Parse failed, error=%d\n", status);
         return 1;
     }
-    fprintf(stdout, "Parse succeed\n");
+    fprintf(stdout, "Parse succeeded\n");
     fprintf(stdout, "\n");
 
     testBasicInfo(font);
