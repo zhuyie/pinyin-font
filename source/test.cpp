@@ -2,8 +2,22 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <chrono>
+using namespace std::chrono;
 
-static void testBasicInfo(const OpenType_Font &font)
+#ifdef _WIN32
+  #define WIN32_LEAN_AND_MEAN
+  #include <windows.h>
+#else
+  #include <sys/types.h>
+  #include <sys/stat.h>
+  #include <unistd.h>
+  #include <dirent.h>
+#endif
+
+//------------------------------------------------------------------------------
+
+static void dumpBasicInfo(const OpenType_Font &font)
 {
     const OpenType_Head &head = font.Head();
     fprintf(stdout, "Head:\n");
@@ -45,7 +59,7 @@ static void __printNameRecords(const char *name, const std::vector<OpenType_Name
     }
 }
 
-static void testName(const OpenType_Font &font)
+static void dumpName(const OpenType_Font &font)
 {
     std::vector<OpenType_NameRecord> nameRecords;
 
@@ -75,7 +89,7 @@ static void testName(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void testPost(const OpenType_Font &font)
+static void dumpPost(const OpenType_Font &font)
 {
     fprintf(stdout, "Post:\n");
     fprintf(stdout, "  Version = 0x%08x\n", font.Post().Version);
@@ -91,7 +105,7 @@ static void testPost(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void testGlyph(const OpenType_Font &font)
+static void dumpGlyph(const OpenType_Font &font)
 {
     fprintf(stdout, "Glyph:\n");
     fprintf(stdout, "  Count = %d\n", font.GlyphCount());
@@ -117,7 +131,7 @@ static void testGlyph(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void testHmtx(const OpenType_Font &font)
+static void dumpHmtx(const OpenType_Font &font)
 {
     fprintf(stdout, "Hhea+Hmtx:\n");
     fprintf(stdout, "  Ascender = %d\n", (int)font.Hhea().Ascender);
@@ -138,7 +152,7 @@ static void testHmtx(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void testCmap(const OpenType_Font &font)
+static void dumpCmap(const OpenType_Font &font)
 {
     fprintf(stdout, "Cmap:\n");
     fprintf(stdout, "  U+0061 -> %d\n", (int)font.CharToGlyphIndex(0x0061));  // Latin Small Letter A
@@ -148,16 +162,8 @@ static void testCmap(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-int main(int argc, char* argv[])
+static int dumpFont(const char *filename)
 {
-    const char *filename = "input.ttf";
-    if (argc >= 2) {
-        filename = argv[1];
-    }
-    fprintf(stdout, "filename = %s\n", filename);
-
-    std::srand(std::time(0));
-
     OpenType_Font font;
     OpenType_Font_Parser parser;
     Status status = parser.Parse(filename, &font);
@@ -168,12 +174,110 @@ int main(int argc, char* argv[])
     fprintf(stdout, "Parse succeeded\n");
     fprintf(stdout, "\n");
 
-    testBasicInfo(font);
-    testName(font);
-    testPost(font);
-    testGlyph(font);
-    testHmtx(font);
-    testCmap(font);
+    dumpBasicInfo(font);
+    dumpName(font);
+    dumpPost(font);
+    dumpGlyph(font);
+    dumpHmtx(font);
+    dumpCmap(font);
 
     return 0;
+} 
+
+//------------------------------------------------------------------------------
+
+#ifdef _WIN32
+static bool walkDir(std::string dir, std::function<void(const char*)> fun)
+{
+    // TODO
+}
+#else
+static bool walkDir(std::string dir, std::function<void(const char*)> fun)
+{
+    DIR *d = opendir(dir.c_str());
+    if (d == nullptr)
+        return false;
+
+    struct dirent *entry;
+    while ((entry = readdir(d))) {
+        if (entry->d_name[0] == '.' && entry->d_name[1] == '\0')
+            continue;
+        if (entry->d_name[0] == '.' && entry->d_name[1] == '.' && entry->d_name[2] == '\0')
+            continue;
+
+        std::string fullpath = dir + "/" + entry->d_name;
+
+        struct stat st = { 0 };
+        stat(fullpath.c_str(), &st);
+        if (S_ISDIR(st.st_mode)) {
+            walkDir(fullpath, fun);
+        } else {
+            size_t len = strlen(entry->d_name);
+            if (len > 4) {
+                if (strcasecmp(&entry->d_name[len - 4], ".ttf") == 0) {
+                    fun(fullpath.c_str());
+                }
+            }
+        }
+    }
+
+    closedir(d);
+    return true;
+}
+#endif
+
+static int benchParse(const char *path)
+{
+    int totalFile = 0, failedFile = 0;
+    long long totalTime = 0;
+    walkDir(path, [&](const char *filename){ 
+        fprintf(stdout, "%s\n", filename);
+        totalFile++;
+
+        OpenType_Font font;
+        OpenType_Font_Parser parser;
+        
+        auto start = system_clock::now();
+        Status status = parser.Parse(filename, &font);
+        if (status != kOk) {
+            fprintf(stdout, "  Parse failed, error=%d\n", status);
+            failedFile++;
+            return;
+        }
+        auto elapsedTime = duration_cast<microseconds>(system_clock::now() - start);
+        fprintf(stdout, "  Parse succeeded, time=%.2fms\n", elapsedTime.count()/1000.0);
+        totalTime += elapsedTime.count();
+    });
+    fprintf(stdout, "\n");
+    fprintf(stdout, "totalFile = %d, failedFile = %d\n", totalFile, failedFile);
+    if (totalFile > failedFile) {
+        fprintf(stdout, "avgParseTime = %.2fms\n", totalTime/1000.0/(totalFile - failedFile));
+    }
+    return 0;
+}
+
+//------------------------------------------------------------------------------
+
+int main(int argc, char* argv[])
+{
+    if (argc < 3) {
+        fprintf(stdout, "usage: %s mode path\n", argv[0]);
+        return 1;
+    }
+    const char *mode = argv[1];
+    const char *path = argv[2];
+    fprintf(stdout, "mode = %s\n", mode);
+    fprintf(stdout, "path = %s\n", path);
+    fprintf(stdout, "\n");
+
+    std::srand(std::time(0));
+
+    if (strcmp(mode, "dump") == 0) {
+        return dumpFont(path);
+    } else if (strcmp(mode, "bench") == 0) {
+        return benchParse(path);
+    } else {
+        fprintf(stdout, "unknown mode\n");
+        return 1;
+    }
 }
