@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <functional>
 #include <chrono>
 using namespace std::chrono;
 
@@ -190,7 +191,34 @@ static int dumpFont(const char *filename)
 #ifdef _WIN32
 static bool walkDir(std::string dir, std::function<void(const char*)> fun)
 {
-    // TODO
+    std::string searchPath = dir + "\\*";
+    WIN32_FIND_DATAA ffd;
+    HANDLE hFind = FindFirstFileA(searchPath.c_str(), &ffd);
+    if (hFind == INVALID_HANDLE_VALUE)
+        return false;
+
+    do {
+        if (ffd.cFileName[0] == '.' && ffd.cFileName[1] == '\0')
+            continue;
+        if (ffd.cFileName[0] == '.' && ffd.cFileName[1] == '.' && ffd.cFileName[2] == '\0')
+            continue;
+
+        std::string fullpath = dir + "\\" + ffd.cFileName;
+
+        if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            walkDir(fullpath, fun);
+        } else {
+            size_t len = strlen(ffd.cFileName);
+            if (len > 4) {
+                if (_stricmp(&ffd.cFileName[len - 4], ".ttf") == 0) {
+                    fun(fullpath.c_str());
+                }
+            }
+        }
+    } while (FindNextFile(hFind, &ffd) != 0);
+
+    FindClose(hFind);
+    return true;
 }
 #else
 static bool walkDir(std::string dir, std::function<void(const char*)> fun)
@@ -297,7 +325,7 @@ int main(int argc, char* argv[])
     fprintf(stdout, "path = %s\n", path);
     fprintf(stdout, "\n");
 
-    std::srand(std::time(0));
+    std::srand((unsigned int)std::time(0));
 
     if (strcmp(mode, "dump") == 0) {
         return dumpFont(path);
