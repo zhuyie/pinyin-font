@@ -30,7 +30,7 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
 
     FILE *f = fopen(filename, "rb");
     if (f == NULL)
-        return kNotFound;
+        return kFileError;
     auto f_guard = scopeGuard([&f]{ fclose(f); });
 
     assert(data_ == NULL);

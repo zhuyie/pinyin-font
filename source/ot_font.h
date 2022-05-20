@@ -234,6 +234,7 @@ typedef struct OpenType_NameRecord {
 class OpenType_Font
 {
     friend class OpenType_Font_Parser;
+    friend class OpenType_Font_Writer;
 
 public:
     OpenType_Font();

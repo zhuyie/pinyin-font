@@ -8,9 +8,10 @@ typedef enum Status {
     kError = 1,             // generic error
     kInvalidArgs = 2,       // invalid arguments
     kOutOfMemory = 3,       // out of memory
-    kNotFound = 4,          // file/entry not found
-    kCorruption = 5,        // data corruption
-    kNotSupported = 6,      // not supported
+    kFileError = 4,         // file system related errors
+    kNotFound = 5,          // entry not found
+    kCorruption = 6,        // data corruption
+    kNotSupported = 7,      // not supported
 } Status;
 
 //------------------------------------------------------------------------------
