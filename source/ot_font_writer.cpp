@@ -229,7 +229,55 @@ Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTableOS2(uint16_t tableIndex)
 {
-    // TODO
+    size_t offset = buf_.size();
+    buf_.resize(offset + 96);
+
+    uint8_t *b = &(buf_[offset]);
+    const OpenType_OS2 &os2 = font_->os2_;
+    put_u2(b + 0,  4);  // Version 4
+    put_i2(b + 2,  os2.xAvgCharWidth);
+    put_u2(b + 4,  os2.usWeightClass);
+    put_u2(b + 6,  os2.usWidthClass);
+    put_u2(b + 8,  os2.fsType);
+    put_i2(b + 10, os2.ySubscriptXSize);
+    put_i2(b + 12, os2.ySubscriptYSize);
+    put_i2(b + 14, os2.ySubscriptXOffset);
+    put_i2(b + 16, os2.ySubscriptYOffset);
+    put_i2(b + 18, os2.ySuperscriptXSize);
+    put_i2(b + 20, os2.ySuperscriptYSize);
+    put_i2(b + 22, os2.ySuperscriptXOffset);
+    put_i2(b + 24, os2.ySuperscriptYOffset);
+    put_i2(b + 26, os2.yStrikeoutSize);
+    put_i2(b + 28, os2.yStrikeoutPosition);
+    put_i2(b + 30, os2.sFamilyClass);
+    memcpy(b + 32, os2.panose, 10);
+    put_u4(b + 42, os2.ulUnicodeRange1);
+    put_u4(b + 46, os2.ulUnicodeRange2);
+    put_u4(b + 50, os2.ulUnicodeRange3);
+    put_u4(b + 54, os2.ulUnicodeRange4);
+    put_u4(b + 58, os2.achVendID);
+    put_u2(b + 62, os2.fsSelection);
+    put_u2(b + 64, os2.usFirstCharIndex);
+    put_u2(b + 66, os2.usLastCharIndex);
+    put_i2(b + 68, os2.sTypoAscender);
+    put_i2(b + 70, os2.sTypoDescender);
+    put_i2(b + 72, os2.sTypoLineGap);
+    put_u2(b + 74, os2.usWinAscent);
+    put_u2(b + 76, os2.usWinDescent);
+    put_u4(b + 78, os2.ulCodePageRange1);
+    put_u4(b + 82, os2.ulCodePageRange2);
+    put_i2(b + 86, os2.sxHeight);
+    put_i2(b + 88, os2.sCapHeight);
+    put_u2(b + 90, os2.usDefaultChar);
+    put_u2(b + 92, os2.usBreakChar);
+    put_u2(b + 94, os2.usMaxContext);
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "OS/2", 4);
+    put_u4(t + 4,  __checksum(b, 96));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, 96);
+
     return kOk;
 }
 
