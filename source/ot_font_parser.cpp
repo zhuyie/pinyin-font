@@ -733,7 +733,7 @@ Status OpenType_Font_Parser::__parseCmap()
     const uint8_t *b = data_ + cmap_.offset;
     // skip table version
     uint16_t numTables = u2(b + 2);
-    if (cmap_.length < 4 + numTables * cbEncodingRecord) {
+    if (cmap_.length < (uint32_t)(4 + numTables * cbEncodingRecord)) {
         return kCorruption;
     }
     // search for best subtable

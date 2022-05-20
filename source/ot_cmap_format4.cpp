@@ -91,7 +91,7 @@ uint16_t CmapSubtableFormat4::Query(uint32_t code)
                 index = (int)code + (int)seg.idDelta;
             } else {
                 int offset = (int)(seg.idRangeOffset / 2) + (int)(code - seg.startCode) - (int)(segments_.size() - mid);
-                if (offset < 0 || offset >= glyphIdArray_.size()) {
+                if (offset < 0 || offset >= (int)glyphIdArray_.size()) {
                     return 0;
                 }
                 index = glyphIdArray_[offset];
