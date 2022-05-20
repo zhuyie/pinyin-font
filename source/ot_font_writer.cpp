@@ -295,13 +295,58 @@ Status OpenType_Font_Writer::__writeTableLocaGlyf(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTableHhea(uint16_t tableIndex)
 {
-    // TODO
+    size_t offset = buf_.size();
+    buf_.resize(offset + 36);
+
+    uint8_t *b = &(buf_[offset]);
+    const OpenType_Hhea &hhea = font_->hhea_;
+    put_u2(b + 0,  hhea.MajorVersion);
+    put_u2(b + 2,  hhea.MinorVersion);
+    put_i2(b + 4,  hhea.Ascender);
+    put_i2(b + 6,  hhea.Descender);
+    put_i2(b + 8,  hhea.LineGap);
+    put_u2(b + 10, hhea.AdvanceWidthMax);
+    put_u2(b + 12, hhea.MinLeftSideBearing);
+    put_u2(b + 14, hhea.MinRightSideBearing);
+    put_i2(b + 16, hhea.XMaxExtent);
+    put_i2(b + 18, hhea.CaretSlopeRise);
+    put_i2(b + 20, hhea.CaretSlopeRun);
+    put_i2(b + 22, hhea.CaretOffset);
+    put_i2(b + 24, hhea.Reserved0);
+    put_i2(b + 26, hhea.Reserved1);
+    put_i2(b + 28, hhea.Reserved2);
+    put_i2(b + 30, hhea.Reserved3);
+    put_i2(b + 32, hhea.MetricDataFormat);
+    put_u2(b + 34, (uint16_t)font_->hmtx_.size());
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "hhea", 4);
+    put_u4(t + 4,  __checksum(b, 36));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, 36);
+
     return kOk;
 }
 
 Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
 {
-    // TODO
+    size_t offset = buf_.size();
+    uint32_t length = 4 * (uint16_t)font_->hmtx_.size();
+    buf_.resize(offset + length);
+
+    uint8_t *b = &(buf_[offset]);
+    for (size_t i = 0; i < font_->hmtx_.size(); i++) {
+        const OpenType_LongHorMetric &mtx = font_->hmtx_[i];
+        put_u2(b + i * 4 + 0, mtx.AdvanceWidth);
+        put_i2(b + i * 4 + 2, mtx.LSB);
+    }
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "hmtx", 4);
+    put_u4(t + 4,  __checksum(b, length));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
     return kOk;
 }
 
