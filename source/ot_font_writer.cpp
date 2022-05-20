@@ -181,7 +181,49 @@ Status OpenType_Font_Writer::__writeTableMaxp(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
 {
-    // TODO
+    size_t offset = buf_.size();
+    uint32_t length = 32 + 2 + font_->maxp_.NumGlyphs * 2, lengthWithPadding;
+    buf_.resize(offset + length);
+    uint8_t *b = &(buf_[offset]);
+
+    const OpenType_Post &post = font_->post_;
+    put_u4(b + 0,  0x00020000);  // version 2.0
+    put_u4(b + 4,  post.ItalicAngle);
+    put_i2(b + 8,  post.UnderlinePosition);
+    put_i2(b + 10, post.UnderlineThickness);
+    put_u4(b + 12, post.IsFixedPitch);
+    put_u4(b + 16, post.MinMemType42);
+    put_u4(b + 20, post.MaxMemType42);
+    put_u4(b + 24, post.MinMemType1);
+    put_u4(b + 28, post.MaxMemType1);
+    b += 32;
+    // numGlyphs
+    put_u2(b + 0, font_->maxp_.NumGlyphs);
+    b += 2;
+    // glyphNameIndex[numGlyphs]
+    for (uint16_t i = 0; i < font_->maxp_.NumGlyphs; i++) {
+        put_u2(b + i * 2, 258 + i);
+        length += 1 + (uint8_t)font_->glyphNames_[i].length();
+    }
+    // stringData
+    lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+    buf_.resize(offset + lengthWithPadding);
+    b = &(buf_[offset + 32 + 2 + font_->maxp_.NumGlyphs * 2]);
+    for (uint16_t i = 0; i < font_->maxp_.NumGlyphs; i++) {
+        const std::string &str = font_->glyphNames_[i];
+        uint8_t len = (uint8_t)str.length();
+        b[0] = len;
+        memcpy(b + 1, str.c_str(), len);
+        b += 1 + len;
+    }
+
+    b = &(buf_[offset]);
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "post", 4);
+    put_u4(t + 4,  __checksum(b, lengthWithPadding));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
     return kOk;
 }
 
