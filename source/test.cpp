@@ -1,4 +1,5 @@
 #include "ot_font_parser.h"
+#include "ot_font_writer.h"
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -258,6 +259,32 @@ static int benchParse(const char *path)
 
 //------------------------------------------------------------------------------
 
+static int rewriteFont(const char *filename)
+{
+    OpenType_Font font;
+
+    OpenType_Font_Parser parser;
+    Status status = parser.Parse(filename, &font);
+    if (status != kOk) {
+        fprintf(stderr, "Parse failed, error=%d\n", status);
+        return 1;
+    }
+    fprintf(stdout, "Parse succeeded\n");
+
+    OpenType_Font_Writer writer;
+    std::string newfile = filename;  newfile += ".rewrite";
+    status = writer.Write(newfile.c_str(), &font);
+    if (status != kOk) {
+        fprintf(stderr, "Write failed, error=%d\n", status);
+        return 1;
+    }
+    fprintf(stdout, "ReWrite succeeded\n");
+
+    return 0;
+}
+
+//------------------------------------------------------------------------------
+
 int main(int argc, char* argv[])
 {
     if (argc < 3) {
@@ -276,6 +303,8 @@ int main(int argc, char* argv[])
         return dumpFont(path);
     } else if (strcmp(mode, "bench") == 0) {
         return benchParse(path);
+    } else if (strcmp(mode, "rewrite") == 0) {
+        return rewriteFont(path);
     } else {
         fprintf(stdout, "unknown mode\n");
         return 1;
