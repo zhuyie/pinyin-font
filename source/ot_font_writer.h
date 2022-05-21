@@ -26,7 +26,9 @@ private:
     Status __writeTablePost(uint16_t tableIndex);
     Status __writeTableOS2(uint16_t tableIndex);
     Status __writeTableName(uint16_t tableIndex);
-    Status __writeTableLocaGlyf(uint16_t tableIndex);
+    Status __writeTableGlyfLoca(uint16_t tableIndex);
+    Status __writeGlyphSimple(const OpenType_GlyphSimple *simple, uint32_t *glyphDataLen);
+    Status __writeGlyphComposite(const OpenType_GlyphComposite *simple, uint32_t *glyphDataLen);
     Status __writeTableHhea(uint16_t tableIndex);
     Status __writeTableHmtx(uint16_t tableIndex);
     Status __writeTableCmap(uint16_t tableIndex);

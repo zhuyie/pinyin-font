@@ -55,7 +55,7 @@ Status OpenType_Font_Writer::Write(const char *filename, const OpenType_Font *fo
         return status;
     if ((status = __writeTableName(4)) != kOk)
         return status;
-    if ((status = __writeTableLocaGlyf(5)) != kOk)
+    if ((status = __writeTableGlyfLoca(5)) != kOk)
         return status;
     if ((status = __writeTableHhea(7)) != kOk)
         return status;
@@ -371,8 +371,85 @@ Status OpenType_Font_Writer::__writeTableName(uint16_t tableIndex)
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableLocaGlyf(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
 {
+    Status status;
+    size_t offset;
+    uint32_t length, lengthWithPadding, glyphDataLen;
+    uint8_t *ploca, *t, *b;
+
+    // The `loca` table is an array of n offsets where n is the number of glyphs in the font plus one
+    std::vector<uint32_t> loca;
+    loca.resize(font_->glyphs_.size() + 1);
+
+    // The offset of table `glyf`
+    offset = buf_.size();
+
+    // Write the glyphs one by one
+    length = 0;
+    for (size_t i = 0; i < font_->glyphs_.size(); i++) {
+        ploca = (uint8_t*)&(loca[i]);
+        put_u4(ploca, length);  // uint32 in big endian
+
+        const OpenType_GlyphHeader *header = font_->glyphs_[i];
+        if (header == nullptr) {  // glyphs which have no outline
+            continue;
+        }
+        if (header->NumberOfContours >= 0) {
+            const OpenType_GlyphSimple *simple = (const OpenType_GlyphSimple*)header;
+            status = __writeGlyphSimple(simple, &glyphDataLen);
+            if (status != kOk) {
+                return status;
+            }
+        } else {
+            const OpenType_GlyphComposite *composite = (const OpenType_GlyphComposite*)header;
+            status = __writeGlyphComposite(composite, &glyphDataLen);
+            if (status != kOk) {
+                return status;
+            }
+        }
+        length += glyphDataLen;
+    }
+    ploca = (uint8_t*)&(loca[font_->glyphs_.size()]);
+    put_u4(ploca, length);  // uint32 in big endian
+
+    lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+    buf_.resize(offset + lengthWithPadding);
+    b = &(buf_[offset]);
+
+    // Write the `glyf` table directory
+    t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "glyf", 4);
+    put_u4(t + 4,  __checksum(b, lengthWithPadding));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
+    // Finally, the `loca` table
+    offset = buf_.size();
+    length = loca.size() * 4;
+    buf_.resize(offset + length);
+    b = &(buf_[offset]);
+    memcpy(b, &loca[0], length);
+
+    t = &(buf_[12 + (tableIndex + 1) * 16]);
+    memcpy(t, "loca", 4);
+    put_u4(t + 4,  __checksum(b, length));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
+    return kOk;
+}
+
+Status OpenType_Font_Writer::__writeGlyphSimple(const OpenType_GlyphSimple *simple, uint32_t *glyphDataLen)
+{
+    *glyphDataLen = 0;
+    // TODO
+    return kOk;
+}
+
+Status OpenType_Font_Writer::__writeGlyphComposite(const OpenType_GlyphComposite *simple, uint32_t *glyphDataLen)
+{
+    *glyphDataLen = 0;
     // TODO
     return kOk;
 }
