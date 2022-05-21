@@ -181,8 +181,16 @@ Status OpenType_Font_Writer::__writeTableMaxp(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
 {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/post#version-20
+    // - If the glyph name index is between 0 and 257 (inclusive), 
+    //   treat that index as a glyph index in the Macintosh standard glyph set and use the Macintosh glyph name. 
+    // - If the glyph name index is between 258 and 65535, then subtract 258 and use that to index 
+    //   into the list of Pascal strings at the end of the table.
+    // - If you do not want to associate a PostScript name with a particular glyph, use 0, 
+    //   which refers to the name .notdef, as the glyphNameIndex entry for that glyph ID.
+
     size_t offset = buf_.size();
-    uint32_t length = 32 + 2 + font_->maxp_.NumGlyphs * 2, lengthWithPadding;
+    uint32_t length = 32 + 2 + (uint32_t)font_->glyphNames_.size() * 2, lengthWithPadding;
     buf_.resize(offset + length);
     uint8_t *b = &(buf_[offset]);
 
@@ -198,23 +206,35 @@ Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
     put_u4(b + 28, post.MaxMemType1);
     b += 32;
     // numGlyphs
-    put_u2(b + 0, font_->maxp_.NumGlyphs);
+    put_u2(b + 0, (uint16_t)font_->glyphNames_.size());
     b += 2;
     // glyphNameIndex[numGlyphs]
-    for (uint16_t i = 0; i < font_->maxp_.NumGlyphs; i++) {
-        put_u2(b + i * 2, 258 + i);
-        length += 1 + (uint8_t)font_->glyphNames_[i].length();
+    uint16_t nameIndex = 258;
+    for (size_t i = 0; i < font_->glyphNames_.size(); i++) {
+        const std::string &str = font_->glyphNames_[i];
+        if (str.length() > 0 && nameIndex < 65535) {
+            put_u2(b + i * 2, nameIndex);
+            nameIndex++;
+            length += 1 + (uint8_t)str.length();
+        } else {
+            put_u2(b + i * 2, 0);
+        }
     }
     // stringData
     lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
     buf_.resize(offset + lengthWithPadding);
-    b = &(buf_[offset + 32 + 2 + font_->maxp_.NumGlyphs * 2]);
-    for (uint16_t i = 0; i < font_->maxp_.NumGlyphs; i++) {
+    b = &(buf_[offset + 32 + 2 + font_->glyphNames_.size() * 2]);
+    nameIndex = 258;
+    for (size_t i = 0; i < font_->glyphNames_.size(); i++) {
         const std::string &str = font_->glyphNames_[i];
+        if (str.length() == 0 || nameIndex == 65535) {
+            continue;
+        }
         uint8_t len = (uint8_t)str.length();
         b[0] = len;
         memcpy(b + 1, str.c_str(), len);
         b += 1 + len;
+        nameIndex++;
     }
 
     b = &(buf_[offset]);
