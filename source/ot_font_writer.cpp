@@ -237,9 +237,9 @@ Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
         nameIndex++;
     }
 
-    b = &(buf_[offset]);
     uint8_t *t = &(buf_[12 + tableIndex * 16]);
     memcpy(t, "post", 4);
+    b = &(buf_[offset]);
     put_u4(t + 4,  __checksum(b, lengthWithPadding));
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
@@ -303,7 +303,71 @@ Status OpenType_Font_Writer::__writeTableOS2(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTableName(uint16_t tableIndex)
 {
-    // TODO
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/name
+    // name records must be sorted first by platform ID, then by platform-specific ID, 
+    // then by language ID, and then by name ID.
+    std::vector<OpenType_NameRecord> records;
+    records.reserve(font_->names_.size());
+    for (auto iter = font_->names_.begin(); iter != font_->names_.end(); iter++) {
+        records.push_back(iter->second);
+    }
+    std::sort(
+        records.begin(), 
+        records.end(), 
+        [](const OpenType_NameRecord &a, const OpenType_NameRecord &b) -> bool {
+            if (a.PlatformID != b.PlatformID)
+                return a.PlatformID < b.PlatformID;
+            if (a.EncodingID != b.EncodingID)
+                return a.EncodingID < b.EncodingID;
+            if (a.LanguageID != b.LanguageID)
+                return a.LanguageID < b.LanguageID;
+            return a.NameID < b.NameID;
+        }
+    );
+
+    size_t offset = buf_.size();
+    uint32_t length = 6 + (uint32_t)records.size() * 12, lengthWithPadding;
+    buf_.resize(offset + length);
+    uint8_t *b = &(buf_[offset]);
+
+    put_u4(b + 0,  0);  // version 0
+    put_u4(b + 2,  (uint16_t)records.size());
+    put_i2(b + 4,  (uint16_t)length);
+    b += 6;
+
+    uint16_t stringOffset = 0;
+    for (size_t i = 0; i < records.size(); i++) {
+        const OpenType_NameRecord &record = records[i];
+        put_u2(b +  0, record.PlatformID);
+        put_u2(b +  2, record.EncodingID);
+        put_u2(b +  4, record.LanguageID);
+        put_u2(b +  6, record.NameID);
+        put_u2(b +  8, (uint16_t)record.String.length() * 2);  // in bytes
+        put_u2(b + 10, stringOffset);
+        stringOffset += (uint16_t)record.String.length() * 2;
+        b += 12;
+    }
+
+    length += stringOffset;
+    lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+    buf_.resize(offset + lengthWithPadding);
+    b = &(buf_[offset + 6 + records.size() * 12]);
+
+    for (size_t i = 0; i < records.size(); i++) {
+        const OpenType_NameRecord &record = records[i];
+        for (size_t j = 0; j < record.String.length(); j++) {
+            put_u2(b, (uint16_t)record.String[j]);  // UTF-16BE
+            b += 2;
+        }
+    }
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "name", 4);
+    b = &(buf_[offset]);
+    put_u4(t + 4,  __checksum(b, lengthWithPadding));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
     return kOk;
 }
 
@@ -351,7 +415,7 @@ Status OpenType_Font_Writer::__writeTableHhea(uint16_t tableIndex)
 Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
 {
     size_t offset = buf_.size();
-    uint32_t length = 4 * (uint16_t)font_->hmtx_.size();
+    uint32_t length = 4 * (uint32_t)font_->hmtx_.size();
     buf_.resize(offset + length);
 
     uint8_t *b = &(buf_[offset]);
