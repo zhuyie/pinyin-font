@@ -31,12 +31,12 @@ int main(int argc, char* argv[])
         printf("usage: %s filename tablename\n", argv[0]);
         return 1;
     }
-    const char *filename = argv[1];
-    const char *tablename = argv[2];
+    std::string filename = argv[1];
+    std::string tablename = argv[2];
 
-    FILE *inFile = fopen(filename, "rb");
+    FILE *inFile = fopen(filename.c_str(), "rb");
     if (inFile == NULL) {
-        printf("can't open file %s\n", filename);
+        printf("can't open file %s\n", filename.c_str());
         return 1;
     }
     auto inFile_guard = scopeGuard([&inFile]{ fclose(inFile); });
@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
         size_t x = offset + i*16; // the offset of the current table start
         char name[5] = { 0 };
         memcpy(name, data + x, 4);
-        if (strcmp(name, tablename) == 0) {
+        if (strcmp(name, tablename.c_str()) == 0) {
             tableOffset = u4(data + x + 8);
             tableLength = u4(data + x + 12);
             break;
@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     }
 
     if (tableOffset == 0) {
-        printf("table %s not found\n", tablename);
+        printf("table '%s' not found\n", tablename.c_str());
         return 1;
     }
     if (tableOffset + tableLength > len) {
@@ -97,7 +97,11 @@ int main(int argc, char* argv[])
 
     std::string outFileName = filename;
     outFileName += ".";
-    outFileName += tablename;
+    if (strcmp(tablename.c_str(), "OS/2") == 0) {
+        outFileName += "OS2";
+    } else {
+        outFileName += tablename;
+    }
     outFileName += ".dat";
     
     FILE *outFile = fopen(outFileName.c_str(), "wb");
