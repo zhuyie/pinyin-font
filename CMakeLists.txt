@@ -31,3 +31,8 @@ add_executable(pinyinfont_test
     source/test.cpp)
 target_link_libraries(pinyinfont_test
     pinyinfont)
+
+add_executable(font_table_dump
+    tools/font_table_dump.cpp)
+target_include_directories(font_table_dump
+    PRIVATE "source")
