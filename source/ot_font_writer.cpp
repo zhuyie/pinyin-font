@@ -330,8 +330,8 @@ Status OpenType_Font_Writer::__writeTableName(uint16_t tableIndex)
     buf_.resize(offset + length);
     uint8_t *b = &(buf_[offset]);
 
-    put_u4(b + 0,  0);  // version 0
-    put_u4(b + 2,  (uint16_t)records.size());
+    put_u2(b + 0,  0);  // version 0
+    put_u2(b + 2,  (uint16_t)records.size());
     put_i2(b + 4,  (uint16_t)length);
     b += 6;
 
