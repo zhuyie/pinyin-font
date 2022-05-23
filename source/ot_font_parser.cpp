@@ -598,7 +598,7 @@ Status OpenType_Font_Parser::__parseGlyphComposite(const uint8_t *data, size_t l
     // components
     uint16_t flags = 0;
     for (;;) {
-        OpenType_GlyphComponent subglyph;
+        OpenType_GlyphComponent subglyph = { 0 };
         // flags && glyphIndex
         if (parsed + 4 > len) {
             return kCorruption;
