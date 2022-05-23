@@ -443,14 +443,211 @@ Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
 Status OpenType_Font_Writer::__writeGlyphSimple(const OpenType_GlyphSimple *simple, uint32_t *glyphDataLen)
 {
     *glyphDataLen = 0;
-    // TODO
+
+    // Calculate the length
+    uint32_t length = 10;  // header
+    length += (uint32_t)simple->EndPtsOfContours.size() * 2;  // endPtsOfContours
+    length += 2;                                              // instructionLength
+    length += (uint16_t)simple->Instructions.size();          // instructions
+    uint8_t lastFlags = 0x00;
+    for (size_t i = 0; i < simple->Points.size(); i++) {
+        uint8_t flags = simple->Points[i].Flags;
+        // flags
+        if ((flags & OpenType_FlagRepeat) == 0) {
+            length += 1;
+        } else if (flags != lastFlags) {
+            length += 2;
+        }
+        lastFlags = flags;
+        // xCoordinates
+        if (flags & OpenType_FlagXShortVector) {
+            length += 1;
+        } else if ((flags & OpenType_FlagXIsSame) == 0) {
+            length += 2;
+        }
+        // yCoordinates
+        if (flags & OpenType_FlagYShortVector) {
+            length += 1;
+        } else if ((flags & OpenType_FlagYIsSame) == 0) {
+            length += 2;
+        }
+    }
+    length = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+
+    *glyphDataLen = length;
+
+    size_t offset = buf_.size();
+    buf_.resize(offset + length);
+    uint8_t *b = &(buf_[offset]);
+
+    // header
+    put_i2(b + 0, simple->NumberOfContours);
+    put_i2(b + 2, simple->XMin);
+    put_i2(b + 4, simple->YMin);
+    put_i2(b + 6, simple->XMax);
+    put_i2(b + 8, simple->YMax);
+    b += 10;
+    // endPtsOfContours
+    for (size_t i = 0; i < simple->EndPtsOfContours.size(); i++) {
+        put_u2(b, simple->EndPtsOfContours[i]);
+        b += 2;
+    }
+    // instructionLength
+    put_u2(b, (uint16_t)simple->Instructions.size());
+    b += 2;
+    if (simple->Instructions.size() > 0) {
+        // instructions
+        memcpy(b, &(simple->Instructions[0]), simple->Instructions.size());
+        b += simple->Instructions.size();
+    }
+    if (simple->NumberOfContours == 0) {
+        return kOk;
+    }
+    // flags
+    lastFlags = 0x00;
+    for (size_t i = 0; i < simple->Points.size(); i++) {
+        uint8_t flags = simple->Points[i].Flags;
+        if ((flags & OpenType_FlagRepeat) == 0) {
+            b[0] = flags;
+            b += 1;
+        } else if (flags != lastFlags) {
+            b[0] = flags;
+            b[1] = 0;
+            b += 2;
+        } else {
+            b[-1]++;
+        }
+        lastFlags = flags;
+    }
+    // xCoordinates
+    int16_t x = 0;
+    for (size_t i = 0; i < simple->Points.size(); i++) {
+        const OpenType_GlyphPoint &p = simple->Points[i];
+        uint8_t flags = p.Flags;
+        int16_t dx = p.X - x;
+        x = p.X;
+        if (flags & OpenType_FlagXShortVector) {
+            if ((flags & OpenType_FlagPositiveXShortVector) == 0) {
+                dx = -dx;
+            }
+            put_u1(b, (uint8_t)dx);
+            b += 1;
+        } else if ((flags & OpenType_FlagXIsSame) == 0) {
+            put_i2(b, dx);
+            b += 2;
+        }
+    }
+    // yCoordinates
+    int16_t y = 0;
+    for (size_t i = 0; i < simple->Points.size(); i++) {
+        const OpenType_GlyphPoint &p = simple->Points[i];
+        uint8_t flags = p.Flags;
+        int16_t dy = p.Y - y;
+        y = p.Y;
+        if (flags & OpenType_FlagYShortVector) {
+            if ((flags & OpenType_FlagPositiveYShortVector) == 0) {
+                dy = -dy;
+            }
+            put_u1(b, (uint8_t)dy);
+            b += 1;
+        } else if ((flags & OpenType_FlagYIsSame) == 0) {
+            put_i2(b, dy);
+            b += 2;
+        }
+    }
+
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeGlyphComposite(const OpenType_GlyphComposite *simple, uint32_t *glyphDataLen)
+Status OpenType_Font_Writer::__writeGlyphComposite(const OpenType_GlyphComposite *composite, uint32_t *glyphDataLen)
 {
     *glyphDataLen = 0;
-    // TODO
+
+    // Calculate the length
+    uint32_t length = 10;  // header
+    uint16_t flags = 0;
+    for (size_t i = 0; i < composite->SubGlyphs.size(); i++) {
+        flags = composite->SubGlyphs[i].Flags;
+        // flags && glyphIndex
+        length += 4;
+        // argument1 && argument2
+        if (flags & OpenType_FlagArg1And2AreWords) {
+            length += 4;
+        } else {
+            length += 2;
+        }
+        // transformation option
+        if (flags & OpenType_FlagWeHaveAScale) {
+            length += 2;
+        } else if (flags & OpenType_FlagWeHaveAnXAndYScale) {
+            length += 4;
+        } else if (flags & OpenType_FlagWeHaveATwoByTwo) {
+            length += 8;
+        }
+    }
+    if (composite->Instructions.size()) {
+        assert(flags & OpenType_FlagWeHaveInstructions);
+        // instructionLength && instructions
+        length += 2;
+        length += (uint16_t)composite->Instructions.size();
+    }
+    length = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+
+    *glyphDataLen = length;
+
+    size_t offset = buf_.size();
+    buf_.resize(offset + length);
+    uint8_t *b = &(buf_[offset]);
+
+    // header
+    put_i2(b + 0, composite->NumberOfContours);
+    put_i2(b + 2, composite->XMin);
+    put_i2(b + 4, composite->YMin);
+    put_i2(b + 6, composite->XMax);
+    put_i2(b + 8, composite->YMax);
+    b += 10;
+    // components
+    for (size_t i = 0; i < composite->SubGlyphs.size(); i++) {
+        const OpenType_GlyphComponent &component = composite->SubGlyphs[i];
+        // flags && glyphIndex
+        put_u2(b + 0, component.Flags);
+        put_u2(b + 2, component.GlyphIndex);
+        b += 4;
+        // argument1 && argument2
+        if (component.Flags & OpenType_FlagArg1And2AreWords) {
+            put_i2(b + 0, component.Arg1);
+            put_i2(b + 2, component.Arg2);
+            b += 4;
+        } else {
+            put_u1(b + 0, (uint8_t)component.Arg1);
+            put_u1(b + 1, (uint8_t)component.Arg2);
+            b += 2;
+        }
+        // transformation option
+        if (component.Flags & OpenType_FlagWeHaveAScale) {
+            put_i2(b + 0, component.Transform[0]);
+            b += 2;
+        } else if (component.Flags & OpenType_FlagWeHaveAnXAndYScale) {
+            put_i2(b + 0, component.Transform[0]);
+            put_i2(b + 2, component.Transform[3]);
+            b += 4;
+        } else if (component.Flags & OpenType_FlagWeHaveATwoByTwo) {
+            put_i2(b + 0, component.Transform[0]);
+            put_i2(b + 2, component.Transform[1]);
+            put_i2(b + 4, component.Transform[2]);
+            put_i2(b + 6, component.Transform[3]);
+            b += 8;
+        }
+    }
+    if (composite->Instructions.size()) {
+        // instructionLength
+        put_u2(b, (uint16_t)composite->Instructions.size());
+        b += 2;
+        // instructions
+        memcpy(b, &(composite->Instructions[0]), composite->Instructions.size());
+        b += composite->Instructions.size();
+    }
+
     return kOk;
 }
 
