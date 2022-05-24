@@ -18,7 +18,7 @@ class CmapSubtableFormat4 : public CmapSubtable
 
 public:
     CmapSubtableFormat4(uint16_t platformId, uint16_t encodingId);
-    virtual Status Parse(const uint8_t *start, const uint8_t *end);
+    virtual Status Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata);
     virtual uint16_t Query(uint32_t code);
     virtual void Dump();
 };
@@ -29,7 +29,7 @@ CmapSubtableFormat4::CmapSubtableFormat4(uint16_t platformId, uint16_t encodingI
 }
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
-Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end)
+Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata)
 {
     const uint8_t *b = start;
     if (b + 12 > end) {
@@ -70,6 +70,20 @@ Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end)
         uint16_t glyphId = u2(b);
         glyphIdArray_.push_back(glyphId);
         b += 2;
+    }
+
+    if (cb) {
+        // TODO: needs to be optimized
+        for (size_t i = 0; i < segments_.size(); i++) {
+            const segment &seg = segments_[i];
+            for (int code = seg.startCode; code <= (int)seg.endCode; code++) {
+                CmapSequentialMapGroup group;
+                group.startCharCode = code;
+                group.endCharCode = code;
+                group.startGlyphID = Query(code);
+                cb(cbUserdata, group);
+            }
+        }
     }
 
     return kOk;

@@ -7,6 +7,14 @@
 
 //------------------------------------------------------------------------------
 
+typedef struct {
+    uint32_t startCharCode;
+    uint32_t endCharCode;
+    uint32_t startGlyphID;
+} CmapSequentialMapGroup;
+
+typedef void (*CmapParseCallback)(void *userdata, CmapSequentialMapGroup group);
+
 class CmapSubtable
 {
 protected:
@@ -23,7 +31,7 @@ public:
     virtual uint16_t PlatformId() { return platformId_; }
     virtual uint16_t EncodingId() { return encodingId_; }
 
-    virtual Status Parse(const uint8_t *start, const uint8_t *end) = 0;
+    virtual Status Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata) = 0;
     virtual uint16_t Query(uint32_t code) = 0;
     virtual void Dump() = 0;
 };

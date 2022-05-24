@@ -6,18 +6,11 @@
 
 class CmapSubtableFormat12 : public CmapSubtable
 {
-    typedef struct {
-        uint32_t startCharCode;
-        uint32_t endCharCode;
-        uint32_t startGlyphID;
-    } SequentialMapGroup;
-    typedef std::vector<SequentialMapGroup> SequentialMapGroups;
-
-    SequentialMapGroups groups_;
+    std::vector<CmapSequentialMapGroup> groups_;
 
 public:
     CmapSubtableFormat12(uint16_t platformId, uint16_t encodingId);
-    virtual Status Parse(const uint8_t *start, const uint8_t *end);
+    virtual Status Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata);
     virtual uint16_t Query(uint32_t code);
     virtual void Dump();
 };
@@ -28,7 +21,7 @@ CmapSubtableFormat12::CmapSubtableFormat12(uint16_t platformId, uint16_t encodin
 }
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
-Status CmapSubtableFormat12::Parse(const uint8_t *start, const uint8_t *end)
+Status CmapSubtableFormat12::Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata)
 {
     const uint8_t *b = start;
     if (b + 14 > end) {
@@ -39,13 +32,17 @@ Status CmapSubtableFormat12::Parse(const uint8_t *start, const uint8_t *end)
     if (b + numGroups*12 > end) {
         return kCorruption;
     }
+    groups_.reserve(numGroups);
     for (uint32_t i = 0; i < numGroups; i++) {
-        SequentialMapGroup group;
+        CmapSequentialMapGroup group;
         group.startCharCode = u4(b);
         group.endCharCode   = u4(b + 4);
         group.startGlyphID  = u4(b + 8);
         groups_.push_back(group);
         b += 12;
+        if (cb) {
+            cb(cbUserdata, group);
+        }
     }
     return kOk;
 }
@@ -55,7 +52,7 @@ uint16_t CmapSubtableFormat12::Query(uint32_t code)
     size_t min = 0, max = groups_.size(), mid;
     while (min < max) {
         mid = (min + max) >> 1;
-        const SequentialMapGroup& group = groups_[mid];
+        const CmapSequentialMapGroup& group = groups_[mid];
         if (code < group.startCharCode) {
             max = mid;
         } else if (code > group.endCharCode) {
@@ -76,7 +73,7 @@ void CmapSubtableFormat12::Dump()
     printf("  format=%d\n", 12);
     printf("  groups=[\n");
     for (size_t i = 0; i < groups_.size(); i++) {
-        const SequentialMapGroup& group = groups_[i];
+        const CmapSequentialMapGroup& group = groups_[i];
         printf("    [%d]={%u,%u,%u}\n", (int)i, group.startCharCode, group.endCharCode, group.startGlyphID);
     }
     printf("  ]\n");

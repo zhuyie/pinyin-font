@@ -49,8 +49,18 @@ Status OpenType_Font::GlyphHorMetric(int index, OpenType_LongHorMetric &metric) 
 
 uint16_t OpenType_Font::CharToGlyphIndex(uint32_t charcode) const
 {
-    if (char2index_) {
-        return char2index_->Query(charcode);
+    size_t min = 0, max = char2index_.size(), mid;
+    while (min < max) {
+        mid = (min + max) >> 1;
+        const CmapSequentialMapGroup& group = char2index_[mid];
+        if (charcode < group.startCharCode) {
+            max = mid;
+        } else if (charcode > group.endCharCode) {
+            min = mid + 1;
+        } else {
+            uint32_t offset = charcode - group.startCharCode;
+            return group.startGlyphID + offset;
+        }
     }
     return 0;
 }
@@ -89,7 +99,7 @@ void OpenType_Font::Clear()
     }
     glyphs_.clear();
     glyphNames_.clear();
-    char2index_.reset(nullptr);
+    char2index_.clear();
     names_.clear();
 }
 

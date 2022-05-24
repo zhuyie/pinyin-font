@@ -8,7 +8,7 @@ class CmapSubtableFormat0 : public CmapSubtable
 {
 public:
     CmapSubtableFormat0(uint16_t platformId, uint16_t encodingId);
-    virtual Status Parse(const uint8_t *start, const uint8_t *end);
+    virtual Status Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata);
     virtual uint16_t Query(uint32_t code);
     virtual void Dump();
 
@@ -22,7 +22,7 @@ CmapSubtableFormat0::CmapSubtableFormat0(uint16_t platformId, uint16_t encodingI
 }
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table
-Status CmapSubtableFormat0::Parse(const uint8_t *start, const uint8_t *end)
+Status CmapSubtableFormat0::Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata)
 {
     const uint8_t *b = start;
     if (b + 260 > end) {
@@ -32,6 +32,16 @@ Status CmapSubtableFormat0::Parse(const uint8_t *start, const uint8_t *end)
     glyphIdArray_.resize(256);
     for (int i = 0; i < 256; i++) {
         glyphIdArray_[i] = b[i];
+    }
+    if (cb) {
+        // TODO: needs to be optimized
+        for (int i = 0; i < 256; i++) {
+            CmapSequentialMapGroup group;
+            group.startCharCode = i;
+            group.endCharCode = i;
+            group.startGlyphID = glyphIdArray_[i];
+            cb(cbUserdata, group);
+        }
     }
     return kOk;
 }

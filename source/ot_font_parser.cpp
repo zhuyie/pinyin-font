@@ -798,11 +798,18 @@ Status OpenType_Font_Parser::__parseCmapSubtable(const uint8_t *start, const uin
         return kNotSupported;
     }
 
-    Status status = subtable->Parse(b, end);
+    font_->char2index_.reserve(4096);
+
+    Status status = subtable->Parse(b, end, __cmapParseCallback, font_);
     if (status != kOk) {
         return status;
     }
 
-    font_->char2index_ = std::move(subtable);
     return kOk;
+}
+
+void OpenType_Font_Parser::__cmapParseCallback(void *userdata, CmapSequentialMapGroup group)
+{
+    OpenType_Font *font = (OpenType_Font*)userdata;
+    font->char2index_.push_back(group);
 }

@@ -8,7 +8,7 @@ class CmapSubtableFormat6 : public CmapSubtable
 {
 public:
     CmapSubtableFormat6(uint16_t platformId, uint16_t encodingId);
-    virtual Status Parse(const uint8_t *start, const uint8_t *end);
+    virtual Status Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata);
     virtual uint16_t Query(uint32_t code);
     virtual void Dump();
 
@@ -24,7 +24,7 @@ CmapSubtableFormat6::CmapSubtableFormat6(uint16_t platformId, uint16_t encodingI
 }
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping
-Status CmapSubtableFormat6::Parse(const uint8_t *start, const uint8_t *end)
+Status CmapSubtableFormat6::Parse(const uint8_t *start, const uint8_t *end, CmapParseCallback cb, void *cbUserdata)
 {
     const uint8_t *b = start;
     if (b + 8 > end) {
@@ -40,6 +40,16 @@ Status CmapSubtableFormat6::Parse(const uint8_t *start, const uint8_t *end)
     for (uint16_t i = 0; i < entryCount_; i++) {
         uint16_t id = u2(b + i*2);
         glyphIdArray_[i] = id;
+    }
+    if (cb) {
+        // TODO: needs to be optimized
+        for (uint16_t i = 0; i < entryCount_; i++) {
+            CmapSequentialMapGroup group;
+            group.startCharCode = firstCode_ + i;
+            group.endCharCode = firstCode_ + i;
+            group.startGlyphID = glyphIdArray_[i];
+            cb(cbUserdata, group);
+        }
     }
     return kOk;
 }

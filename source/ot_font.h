@@ -266,7 +266,7 @@ private:
     std::vector<OpenType_LongHorMetric> hmtx_;
     std::vector<OpenType_GlyphHeader*> glyphs_;
     std::vector<std::string> glyphNames_;
-    std::unique_ptr<CmapSubtable> char2index_;
+    std::vector<CmapSequentialMapGroup> char2index_;
     std::multimap<uint16_t, OpenType_NameRecord> names_;
 };
 
