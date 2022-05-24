@@ -512,7 +512,7 @@ Status OpenType_Font_Writer::__writeGlyphSimple(const OpenType_GlyphSimple *simp
             b += 1;
         } else if (flags != lastFlags) {
             b[0] = flags;
-            b[1] = 0;
+            b[1] = 0;  // number of additional entries
             b += 2;
         } else {
             b[-1]++;
@@ -710,7 +710,37 @@ Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
 {
-    // TODO
+    size_t offset = buf_.size();
+    uint32_t length = 28 + (uint32_t)font_->char2index_.size() * 12;
+    buf_.resize(offset + length);
+
+    uint8_t *b = &(buf_[offset]);
+    put_u2(b + 0,  0);   // version
+    put_u2(b + 2,  1);   // numTables
+    put_u2(b + 4,  3);   // platformID
+    put_u2(b + 6,  10);  // encodingID
+    put_u4(b + 8,  12);  // subtableOffset
+
+    put_u2(b + 12, 12);  // format 12
+    put_u2(b + 14, 0);   // reserved
+    put_u4(b + 16, length - 12);  // subtable length
+    put_u4(b + 20, 0);   // language
+    put_u4(b + 24, (uint32_t)font_->char2index_.size());   // numGroups
+
+    for (size_t i = 0; i < font_->char2index_.size(); i++) {
+        const CmapSequentialMapGroup &group = font_->char2index_[i];
+        uint8_t *b1 = b + 28 + i * 12;
+        put_u4(b1 + 0, group.startCharCode);
+        put_u4(b1 + 4, group.endCharCode);
+        put_u4(b1 + 8, group.startGlyphID);
+    }
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "cmap", 4);
+    put_u4(t + 4,  __checksum(b, length));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
     return kOk;
 }
 
