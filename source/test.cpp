@@ -258,7 +258,7 @@ static bool walkDir(std::string dir, std::function<void(const char*)> fun)
 static int benchParse(const char *path)
 {
     int totalFile = 0, failedFile = 0;
-    long long totalTime = 0;
+    long long totalTime = 0, minTime = -1, maxTime = -1;
     walkDir(path, [&](const char *filename){ 
         fprintf(stdout, "%s\n", filename);
         totalFile++;
@@ -276,11 +276,20 @@ static int benchParse(const char *path)
         auto elapsedTime = duration_cast<microseconds>(system_clock::now() - start);
         fprintf(stdout, "  Parse succeeded, time=%.2fms\n", elapsedTime.count()/1000.0);
         totalTime += elapsedTime.count();
+        if (minTime == -1 || elapsedTime.count() < minTime) {
+            minTime = elapsedTime.count();
+        }
+        if (maxTime == -1 || elapsedTime.count() > maxTime) {
+            maxTime = elapsedTime.count();
+        }
     });
     fprintf(stdout, "\n");
     fprintf(stdout, "totalFile = %d, failedFile = %d\n", totalFile, failedFile);
     if (totalFile > failedFile) {
-        fprintf(stdout, "avgParseTime = %.2fms\n", totalTime/1000.0/(totalFile - failedFile));
+        fprintf(stdout, "ParseTime: avg=%.2fms, min=%.2fms, max=%.2fms\n", 
+            totalTime/1000.0/(totalFile - failedFile), 
+            minTime/1000.0, 
+            maxTime/1000.0);
     }
     return 0;
 }
