@@ -38,6 +38,18 @@ Status CmapSubtableFormat12::Parse(const uint8_t *start, const uint8_t *end, Cma
         group.startCharCode = u4(b);
         group.endCharCode   = u4(b + 4);
         group.startGlyphID  = u4(b + 8);
+        if (group.endCharCode < group.startCharCode) {
+            return kCorruption;
+        }
+        if (groups_.size() > 0) {
+            const CmapSequentialMapGroup &lastGroup = groups_.back();
+            // Groups must be sorted by increasing startCharCode
+            if (lastGroup.startCharCode >= group.startCharCode)
+                return kCorruption;
+            // A group's endCharCode must be less than the startCharCode of the following group
+            if (lastGroup.endCharCode >= group.startCharCode)
+                return kCorruption;
+        }
         groups_.push_back(group);
         b += 12;
         if (cb) {
