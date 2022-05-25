@@ -66,6 +66,12 @@ Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end, Cmap
     }
     b += 2*segCount;
 
+    for (size_t i = 0; i < segments_.size(); i++) {
+        if (segments_[i].endCode < segments_[i].startCode) {
+            return kCorruption;
+        }
+    }
+
     while (b + 2 <= subtableEnd) {
         uint16_t glyphId = u2(b);
         glyphIdArray_.push_back(glyphId);
@@ -73,15 +79,53 @@ Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end, Cmap
     }
 
     if (cb) {
-        // TODO: needs to be optimized
         for (size_t i = 0; i < segments_.size(); i++) {
             const segment &seg = segments_[i];
-            for (int code = seg.startCode; code <= (int)seg.endCode; code++) {
-                CmapSequentialMapGroup group;
-                group.startCharCode = code;
-                group.endCharCode = code;
-                group.startGlyphID = Query(code);
-                cb(cbUserdata, group);
+            if (seg.idRangeOffset == 0) {
+                int startGlyphID = ((int)seg.startCode + seg.idDelta) % 65536;
+                int endGlyphID = ((int)seg.endCode + seg.idDelta) % 65536;
+                if (endGlyphID >= startGlyphID) {
+                    CmapSequentialMapGroup group;
+                    group.startCharCode = seg.startCode;
+                    group.endCharCode = seg.endCode;
+                    group.startGlyphID = startGlyphID;
+                    cb(cbUserdata, group);
+                } else {
+                    int group0Len = 65536 - startGlyphID;
+                    assert(group0Len > 0);
+                    assert(seg.startCode + group0Len <= seg.endCode);
+
+                    CmapSequentialMapGroup group0;
+                    group0.startCharCode = seg.startCode;
+                    group0.endCharCode = seg.startCode + group0Len - 1;
+                    group0.startGlyphID = startGlyphID;
+                    cb(cbUserdata, group0);
+
+                    CmapSequentialMapGroup group1;
+                    group1.startCharCode = seg.startCode + group0Len;
+                    group1.endCharCode = seg.endCode;
+                    group1.startGlyphID = 0;
+                    cb(cbUserdata, group1);
+                }
+            } else {
+                for (int code = seg.startCode; code <= (int)seg.endCode; code++) {
+                    CmapSequentialMapGroup group;
+                    group.startCharCode = code;
+                    group.endCharCode = code;
+                    group.startGlyphID = 0;
+
+                    int offset = (int)(seg.idRangeOffset / 2) + (int)(code - seg.startCode) - (int)(segments_.size() - i);
+                    if (offset >= 0 && offset < (int)glyphIdArray_.size()) {
+                        int index = glyphIdArray_[offset];
+                        if (index != 0) {
+                            index += (int)seg.idDelta;
+                            index = index % 65536;
+                            group.startGlyphID = index;
+                        }
+                    }
+
+                    cb(cbUserdata, group);
+                }
             }
         }
     }
@@ -104,6 +148,7 @@ uint16_t CmapSubtableFormat4::Query(uint32_t code)
             if (seg.idRangeOffset == 0) {
                 index = (int)code + (int)seg.idDelta;
             } else {
+                // idRangeOffset is the offset in bytes to glyph indexArray
                 int offset = (int)(seg.idRangeOffset / 2) + (int)(code - seg.startCode) - (int)(segments_.size() - mid);
                 if (offset < 0 || offset >= (int)glyphIdArray_.size()) {
                     return 0;
