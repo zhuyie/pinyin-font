@@ -1,5 +1,6 @@
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
+#include "pinyin_font_builder.h"
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -322,6 +323,22 @@ static int rewriteFont(const char *filename)
 
 //------------------------------------------------------------------------------
 
+static int buildFont(const char *filename)
+{
+    PinyinFontBuilder builder;
+
+    Status status = builder.Build(filename);
+    if (status != kOk) {
+        fprintf(stderr, "Build failed, error=%d\n", status);
+        return 1;
+    }
+    fprintf(stdout, "Build succeeded\n");
+
+    return 0;
+}
+
+//------------------------------------------------------------------------------
+
 int main(int argc, char* argv[])
 {
     if (argc < 3) {
@@ -342,6 +359,8 @@ int main(int argc, char* argv[])
         return benchParse(path);
     } else if (strcmp(mode, "rewrite") == 0) {
         return rewriteFont(path);
+    } else if (strcmp(mode, "build") == 0) {
+        return buildFont(path);
     } else {
         fprintf(stdout, "unknown mode\n");
         return 1;
