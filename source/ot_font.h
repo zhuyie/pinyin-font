@@ -256,6 +256,7 @@ public:
     Status Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records) const;
 
     void Clear();
+    Status AddGlyph(const OpenType_GlyphHeader *glyph, const OpenType_LongHorMetric *mtx, const char* name);
 
 private:
     OpenType_Head head_;

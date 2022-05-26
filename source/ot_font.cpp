@@ -103,4 +103,48 @@ void OpenType_Font::Clear()
     names_.clear();
 }
 
+Status OpenType_Font::AddGlyph(const OpenType_GlyphHeader *glyph, const OpenType_LongHorMetric *mtx, const char* name)
+{
+    assert(glyph);
+    assert(mtx);
+
+    if (glyphs_.size() == 65535) {
+        return kError;
+    }
+
+    OpenType_GlyphHeader *newGlyph = NULL;
+    if (glyph->NumberOfContours >= 0) {
+        const OpenType_GlyphSimple *source = (const OpenType_GlyphSimple*)glyph;
+        OpenType_GlyphSimple *simple = new OpenType_GlyphSimple;
+        simple->NumberOfContours = source->NumberOfContours;
+        simple->XMin = source->XMin;
+        simple->XMax = source->XMax;
+        simple->YMin = source->YMin;
+        simple->YMax = source->YMax;
+        simple->EndPtsOfContours = source->EndPtsOfContours;
+        simple->Instructions = source->Instructions;
+        simple->Points = source->Points;
+        newGlyph = simple;
+    } else {
+        const OpenType_GlyphComposite *source = (const OpenType_GlyphComposite*)glyph;
+        OpenType_GlyphComposite *composite = new OpenType_GlyphComposite;
+        composite->NumberOfContours = source->NumberOfContours;
+        composite->XMin = source->XMin;
+        composite->XMax = source->XMax;
+        composite->YMin = source->YMin;
+        composite->YMax = source->YMax;
+        composite->SubGlyphs = source->SubGlyphs;
+        composite->Instructions = source->Instructions;
+        newGlyph = composite;
+    }
+    glyphs_.push_back(newGlyph);
+
+    hmtx_.push_back(*mtx);
+    glyphNames_.push_back(name);
+
+    maxp_.NumGlyphs++;
+
+    return kOk;
+}
+
 //------------------------------------------------------------------------------
