@@ -3,6 +3,7 @@
 
 #include "status.h"
 #include "ot_font.h"
+#include <string>
 
 //------------------------------------------------------------------------------
 
@@ -19,7 +20,8 @@ public:
 private:
     Status __checkRequiredGlyphs();
     Status __AddPinyinGlyphs();
-    Status __AddPinyinGlyph(uint32_t charcode, const char* pinyin);
+    Status __AddPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio);
+    void __AddSubGlyph(OpenType_GlyphComposite &glyph, uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);
 };
 
 //------------------------------------------------------------------------------

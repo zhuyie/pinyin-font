@@ -64,51 +64,87 @@ Status PinyinFontBuilder::__checkRequiredGlyphs()
 
 Status PinyinFontBuilder::__AddPinyinGlyphs()
 {
-    __AddPinyinGlyph(0x6C49, "han");
-    __AddPinyinGlyph(0x8BED, "yu");
-    __AddPinyinGlyph(0x62FC, "pin");
-    __AddPinyinGlyph(0x97F3, "yin");
+    __AddPinyinGlyph(0x6C49, L"han", 0.65);
+    __AddPinyinGlyph(0x8BED, L"yu", 0.65);
+    __AddPinyinGlyph(0x62FC, L"pin", 0.65);
+    __AddPinyinGlyph(0x97F3, L"yin", 0.65);
     return kOk;
 }
 
-Status PinyinFontBuilder::__AddPinyinGlyph(uint32_t charcode, const char* pinyin)
+Status PinyinFontBuilder::__AddPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio)
 {
+    assert(baseRatio > 0 && baseRatio < 0.9);
+
     uint32_t baseGlyphIndex = font_.CharToGlyphIndex(charcode);
     if (baseGlyphIndex == 0) {
         return kNotFound;
     }
     OpenType_GlyphHeader *baseGlyph = NULL;
-    Status status = font_.Glyph(baseGlyphIndex, &baseGlyph);
-    if (status != kOk) {
-        return status;
+    OpenType_LongHorMetric baseHmtx = { 0 };
+    if (font_.Glyph(baseGlyphIndex, &baseGlyph) != kOk || font_.GlyphHorMetric(baseGlyphIndex, baseHmtx) != kOk) {
+        return kError;
     }
     assert(baseGlyph != NULL);
-    OpenType_LongHorMetric mtx = { 0 };
-    status = font_.GlyphHorMetric(baseGlyphIndex, mtx);
-    if (status != kOk) {
-        return status;
+
+    double pinyinRatio = 0.9 - baseRatio;
+    int16_t baseDX = baseHmtx.AdvanceWidth * (1.0 - baseRatio) / 2;
+    int16_t pinyinDY = (int16_t)(font_.Hhea().Ascender * baseRatio) + (int16_t)(font_.Hhea().Descender * (-1) * pinyinRatio);
+    int16_t centerX = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
+
+    OpenType_GlyphComposite glyph;
+    glyph.NumberOfContours = -1;
+    glyph.XMin = baseGlyph->XMin;
+    glyph.XMax = baseGlyph->XMax;
+    glyph.YMin = baseGlyph->YMin;
+    glyph.YMax = baseGlyph->YMax;
+
+    const int MAX_PINYIN_CHARS = 10;
+    uint16_t glyphIndexes[MAX_PINYIN_CHARS];
+    uint16_t glyphOriginXs[MAX_PINYIN_CHARS];
+    int32_t totalWidth = 0;
+    for (size_t i = 0; i < MAX_PINYIN_CHARS && i < pinyin.size(); i++) {
+        wchar_t c = pinyin[i];
+        glyphIndexes[i] = font_.CharToGlyphIndex(c);
+        if (glyphIndexes[i] == 0) {
+            return kError;
+        }
+        OpenType_LongHorMetric mtx = { 0 };
+        font_.GlyphHorMetric(glyphIndexes[i], mtx);
+        glyphOriginXs[i] = totalWidth;
+        totalWidth += mtx.AdvanceWidth;
+    }
+    for (size_t i = 0; i < MAX_PINYIN_CHARS && i < pinyin.size(); i++) {
+        uint16_t pinyinDX = centerX - (uint16_t)((totalWidth / 2 - glyphOriginXs[i]) * pinyinRatio);
+        __AddSubGlyph(glyph, glyphIndexes[i], pinyinRatio, pinyinDX, pinyinDY, false);
     }
 
-    OpenType_GlyphComposite g;
-    g.NumberOfContours = -1;
-    g.XMin = baseGlyph->XMin;
-    g.XMax = baseGlyph->XMax;
-    g.YMin = baseGlyph->YMin;
-    g.YMax = baseGlyph->YMax;
-    OpenType_GlyphComponent c = { 0 };
-    c.Flags = OpenType_FlagArgsAreXYValues | OpenType_FlagWeHaveAScale;
-    c.Transform[0] = (int16_t)(0.7 * 16384.0);  // in F2DOT14
-    c.Transform[3] = c.Transform[0];
-    c.GlyphIndex = baseGlyphIndex;
-    g.SubGlyphs.push_back(c);
+    __AddSubGlyph(glyph, baseGlyphIndex, baseRatio, baseDX, 0, true);
 
-    char glyphName[20] = { 0 };
-    sprintf(glyphName, "uni%04X_pinyin", (unsigned int)charcode);
+    char name[20] = { 0 };
+    sprintf(name, "uni%04X_pinyin", (unsigned int)charcode);
 
-    status = font_.AddGlyph(&g, &mtx, glyphName);
+    Status status = font_.AddGlyph(&glyph, &baseHmtx, name);
     if (status != kOk) {
         return status;
     }
 
     return kOk;
+}
+
+void PinyinFontBuilder::__AddSubGlyph(
+    OpenType_GlyphComposite &glyph, uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne)
+{
+    OpenType_GlyphComponent c = { 0 };
+    c.Flags = OpenType_FlagArgsAreXYValues | OpenType_FlagUnscaledComponentOffset | OpenType_FlagWeHaveAScale;
+    if (!isLastOne) {
+        c.Flags |= OpenType_FlagMoreComponents;
+    }
+    if (dx > 127 || dx < -128 || dy > 127 || dy < -128) {
+        c.Flags |= OpenType_FlagArg1And2AreWords;
+    }
+    c.Arg1 = dx;
+    c.Arg2 = dy;
+    c.Transform[0] = c.Transform[3] = (int16_t)(scale * 16384.0);  // in F2DOT14
+    c.GlyphIndex = glyphIndex;
+    glyph.SubGlyphs.push_back(c);
 }
