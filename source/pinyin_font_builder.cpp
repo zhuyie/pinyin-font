@@ -64,10 +64,10 @@ Status PinyinFontBuilder::__checkRequiredGlyphs()
 
 Status PinyinFontBuilder::__AddPinyinGlyphs()
 {
-    __AddPinyinGlyph(0x6C49, L"han", 0.65);
-    __AddPinyinGlyph(0x8BED, L"yu", 0.65);
-    __AddPinyinGlyph(0x62FC, L"pin", 0.65);
-    __AddPinyinGlyph(0x97F3, L"yin", 0.65);
+    __AddPinyinGlyph(0x6C49, L"ha\u0300n", 0.65);
+    __AddPinyinGlyph(0x8BED, L"yu\u030C", 0.65);
+    __AddPinyinGlyph(0x62FC, L"pi\u0304n", 0.65);
+    __AddPinyinGlyph(0x97F3, L"yi\u0304n", 0.65);
     return kOk;
 }
 
@@ -98,24 +98,15 @@ Status PinyinFontBuilder::__AddPinyinGlyph(uint32_t charcode, const std::wstring
     glyph.YMin = baseGlyph->YMin;
     glyph.YMax = baseGlyph->YMax;
 
-    const int MAX_PINYIN_CHARS = 10;
-    uint16_t glyphIndexes[MAX_PINYIN_CHARS];
-    uint16_t glyphOriginXs[MAX_PINYIN_CHARS];
-    int32_t totalWidth = 0;
-    for (size_t i = 0; i < MAX_PINYIN_CHARS && i < pinyin.size(); i++) {
-        wchar_t c = pinyin[i];
-        glyphIndexes[i] = font_.CharToGlyphIndex(c);
-        if (glyphIndexes[i] == 0) {
-            return kError;
-        }
-        OpenType_LongHorMetric mtx = { 0 };
-        font_.GlyphHorMetric(glyphIndexes[i], mtx);
-        glyphOriginXs[i] = totalWidth;
-        totalWidth += mtx.AdvanceWidth;
+    std::vector<glyphInfo> pinyinGlyphs;
+    int16_t pinyinWidth = 0;
+    if (!__ComposePinyin(pinyin, pinyinGlyphs, pinyinWidth)) {
+        return kError;
     }
-    for (size_t i = 0; i < MAX_PINYIN_CHARS && i < pinyin.size(); i++) {
-        uint16_t pinyinDX = centerX - (uint16_t)((totalWidth / 2 - glyphOriginXs[i]) * pinyinRatio);
-        __AddSubGlyph(glyph, glyphIndexes[i], pinyinRatio, pinyinDX, pinyinDY, false);
+    for (size_t i = 0; i < pinyinGlyphs.size(); i++) {
+        glyphInfo info = pinyinGlyphs[i];
+        uint16_t pinyinDX = centerX - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio);
+        __AddSubGlyph(glyph, info.GlyphIndex, pinyinRatio, pinyinDX, pinyinDY + info.OffsetY * pinyinRatio, false);
     }
 
     __AddSubGlyph(glyph, baseGlyphIndex, baseRatio, baseDX, 0, true);
@@ -147,4 +138,123 @@ void PinyinFontBuilder::__AddSubGlyph(
     c.Transform[0] = c.Transform[3] = (int16_t)(scale * 16384.0);  // in F2DOT14
     c.GlyphIndex = glyphIndex;
     glyph.SubGlyphs.push_back(c);
+}
+
+bool PinyinFontBuilder::__ComposePinyin(
+    const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth)
+{
+    glyphs.clear();
+    totalWidth = 0;
+
+    glyphs.reserve(pinyin.size());
+    wchar_t cluster[3] = { 0 };
+    for (size_t i = 0; i < pinyin.size(); i++) {
+        wchar_t c = pinyin[i];
+        if (__IsMarkChar(c)) {
+            // a combining mark
+            if (cluster[0] == 0) {
+                return false;
+            } else if (cluster[1] == 0) {
+                cluster[1] = c;
+            } else if (cluster[2] == 0) {
+                cluster[2] = c;
+            } else {
+                return false;
+            }
+        } else {
+            // a normal character
+            if (!__ComposeCluster(cluster, glyphs, totalWidth)) {
+                return false;
+            }
+            cluster[0] = c;
+        }
+    }
+    if (!__ComposeCluster(cluster, glyphs, totalWidth)) {
+        return false;
+    }
+
+    return true;
+}
+
+bool PinyinFontBuilder::__ComposeCluster(
+    wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x)
+{
+    if (cluster[0] == 0) {
+        return true;
+    }
+    if (cluster[0] == 'i' && cluster[1] != 0) {
+        switch (cluster[1]) {
+        case 0x0304:
+            cluster[0] = 0x012B;  // Latin Small Letter I with Macron
+            break;
+        case 0x0301:
+            cluster[0] = 0x00ED;  // Latin Small Letter I with Acute
+            break;
+        case 0x030C:
+            cluster[0] = 0x01D0;  // Latin Small Letter I with Caron
+            break;
+        case 0x0300:
+            cluster[0] = 0x00EC;  // Latin Small Letter I with Grave
+            break;
+        default:
+            return false;
+        }
+        cluster[1] = 0;
+    }
+    
+    glyphInfo info;
+    int16_t centerX, DY;
+    OpenType_GlyphHeader *pGlyph = NULL;
+    OpenType_LongHorMetric mtx = { 0 };
+
+    // normal character
+    info.GlyphIndex = font_.CharToGlyphIndex(cluster[0]);
+    if (info.GlyphIndex == 0) {
+        return false;
+    }
+    font_.Glyph(info.GlyphIndex, &pGlyph);
+    font_.GlyphHorMetric(info.GlyphIndex, mtx);
+    info.OffsetX = x - pGlyph->XMin;
+    info.OffsetY = 0;
+    info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + 20;
+    glyphs.push_back(info);
+
+    centerX = (int16_t)(x - pGlyph->XMin + (pGlyph->XMax - pGlyph->XMin) / 2);
+    DY = pGlyph->YMax;
+
+    x += info.AdvanceWidth;
+
+    if (cluster[1] != 0) {
+        // 1st mark
+        info.GlyphIndex = font_.CharToGlyphIndex(cluster[1]);
+        if (info.GlyphIndex == 0) {
+            switch (cluster[1]) {
+            case 0x0304:
+                cluster[1] = 0x00AF;
+                break;
+            case 0x0301:
+                cluster[1] = 0x00B4;
+                break;
+            case 0x030C:
+                cluster[1] = 0x02C7;
+                break;
+            case 0x0300:
+                cluster[1] = 0x0060;
+                break;
+            }
+            info.GlyphIndex = font_.CharToGlyphIndex(cluster[1]);
+            if (info.GlyphIndex == 0) {
+                return false;
+            }
+        }
+        font_.Glyph(info.GlyphIndex, &pGlyph);
+        font_.GlyphHorMetric(info.GlyphIndex, mtx);
+        info.OffsetX = centerX - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
+        info.OffsetY = DY - pGlyph->YMin;
+        info.AdvanceWidth = pGlyph->XMax - pGlyph->XMin;
+        glyphs.push_back(info);
+    }
+
+    cluster[0] = cluster[1] = cluster[2] = 0;
+    return true;
 }
