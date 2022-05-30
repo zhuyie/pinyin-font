@@ -37,6 +37,8 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
         return kNotSupported;
     }
 
+    __buildSubstitutions();
+
     status = __addPinyinGlyphs(pinyinDB);
     if (status != kOk) {
         return status;
@@ -104,6 +106,46 @@ bool PinyinFontBuilder::__alternativeChar(wchar_t &c)
     case 0x0308: c = 0x00A8; return true;
     }
     return false;
+}
+
+void PinyinFontBuilder::__buildSubstitutions()
+{
+    static wchar_t s_substitution[][3] = {
+        { 'u', 0x0308, 0x00FC },  // ü
+
+        { 'a', 0x0304, 0x0101 },  // ā
+        { 'a', 0x0301, 0x00E1 },  // á
+        { 'a', 0x030C, 0x01CE },  // ǎ
+        { 'a', 0x0300, 0x00E0 },  // à
+
+        { 'e', 0x0304, 0x0113 },  // ē
+        { 'e', 0x0301, 0x00E9 },  // é
+        { 'e', 0x030C, 0x011B },  // ě
+        { 'e', 0x0300, 0x00E8 },  // è
+
+        { 'o', 0x0304, 0x014D },  // ō
+        { 'o', 0x0301, 0x00F3 },  // ó
+        { 'o', 0x030C, 0x01D2 },  // ǒ
+        { 'o', 0x0300, 0x00F2 },  // ò
+
+        { 'u', 0x0304, 0x016B },  // ū
+        { 'u', 0x0301, 0x00FA },  // ú
+        { 'u', 0x030C, 0x01D4 },  // ǔ
+        { 'u', 0x0300, 0x00F9 },  // ù
+
+        { 0x00FC, 0x0304, 0x01D6 },  // ǖ
+        { 0x00FC, 0x0301, 0x01D8 },  // ǘ
+        { 0x00FC, 0x030C, 0x01DA },  // ǚ
+        { 0x00FC, 0x0300, 0x01DC },  // ǜ
+    };
+    for (int i = 0; i < sizeof(s_substitution) / sizeof(s_substitution[0]); i++) {
+        uint16_t glyphIndex = font_.CharToGlyphIndex(s_substitution[i][2]);
+        if (glyphIndex != 0) {
+            uint64_t key = (uint64_t)(s_substitution[i][0]) << 32 | 
+                           (uint64_t)(s_substitution[i][1]);
+            substitutions_[key] = s_substitution[i][2];
+        }
+    }
 }
 
 Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
@@ -247,7 +289,21 @@ bool PinyinFontBuilder::__composeCluster(
         default:
             return false;
         }
-        cluster[1] = 0;
+        cluster[1] = cluster[2] = 0;
+    }
+
+    for (;;) {
+        if (cluster[1] == 0) {
+            break;
+        }
+        uint64_t key = (uint64_t)cluster[0] << 32 | (uint64_t)cluster[1];
+        auto iter = substitutions_.find(key);
+        if (iter == substitutions_.end()) {
+            break;
+        }
+        cluster[0] = iter->second;
+        cluster[1] = cluster[2];
+        cluster[2] = 0;
     }
 
     glyphInfo info;

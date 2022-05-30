@@ -5,6 +5,7 @@
 #include "ot_font.h"
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 //------------------------------------------------------------------------------
 
@@ -27,6 +28,7 @@ class PinyinFontBuilder
     int16_t pinyinCharYMin_;
     int16_t baseDY_;
     int16_t pinyinDY_;
+    std::unordered_map<uint64_t, wchar_t> substitutions_;
 
     OpenType_GlyphComposite glyph_;
     std::vector<glyphInfo> pinyinGlyphInfos_;
@@ -42,6 +44,7 @@ private:
     bool __checkRequiredGlyphs();
     bool __isMarkChar(wchar_t c);
     bool __alternativeChar(wchar_t &c);
+    void __buildSubstitutions();
     Status __addPinyinGlyphs(const PinyinDB &pinyinDB);
     Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin);
     void __addSubGlyph(OpenType_GlyphComposite &glyph, 
