@@ -17,6 +17,7 @@ class PinyinFontBuilder
     } glyphInfo;
 
     OpenType_Font font_;
+    int16_t charSpace_;
 
 public:
     PinyinFontBuilder();

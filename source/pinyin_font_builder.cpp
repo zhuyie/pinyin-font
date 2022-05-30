@@ -6,6 +6,7 @@
 //------------------------------------------------------------------------------
 
 PinyinFontBuilder::PinyinFontBuilder()
+: charSpace_(0)
 {
 }
 
@@ -22,6 +23,8 @@ Status PinyinFontBuilder::Build(const char *sourceFont)
     if (status != kOk) {
         return status;
     }
+
+    charSpace_ = (int16_t)((font_.Head().XMax - font_.Head().XMin) * 0.1);
 
     status = __checkRequiredGlyphs();
     if (status != kOk) {
@@ -220,12 +223,12 @@ bool PinyinFontBuilder::__ComposeCluster(
     }
     font_.Glyph(info.GlyphIndex, &pGlyph);
     font_.GlyphHorMetric(info.GlyphIndex, mtx);
-    info.OffsetX = x - pGlyph->XMin;
+    info.OffsetX = x - pGlyph->XMin + charSpace_ / 2;
     info.OffsetY = 0;
-    info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + 20;
+    info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + charSpace_;
     glyphs.push_back(info);
 
-    centerX = (int16_t)(x + (pGlyph->XMax - pGlyph->XMin) / 2);
+    centerX = (int16_t)(x + charSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
     DY = pGlyph->YMax;
 
     x += info.AdvanceWidth;
