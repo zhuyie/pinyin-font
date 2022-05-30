@@ -6,7 +6,7 @@
 //------------------------------------------------------------------------------
 
 PinyinFontBuilder::PinyinFontBuilder()
-: charSpace_(0), pinyinCharYMin_(0)
+: pinyinCharSpace_(0), pinyinMarkVSpace_(0), pinyinCharYMin_(0)
 {
 }
 
@@ -24,7 +24,8 @@ Status PinyinFontBuilder::Build(const char *sourceFont)
         return status;
     }
 
-    charSpace_ = (int16_t)((font_.Head().XMax - font_.Head().XMin) * 0.1);
+    pinyinCharSpace_ = (int16_t)((font_.Head().XMax - font_.Head().XMin) * 0.1);
+    pinyinMarkVSpace_ = (int16_t)(pinyinCharSpace_ * 0.33);
     pinyinCharYMin_ = __calcPinyinCharYMin();
 
     status = __checkRequiredGlyphs();
@@ -90,6 +91,7 @@ Status PinyinFontBuilder::__AddPinyinGlyphs()
     __AddPinyinGlyph(0x8BED, L"yu\u030C", 0.65);
     __AddPinyinGlyph(0x62FC, L"pi\u0304n", 0.65);
     __AddPinyinGlyph(0x97F3, L"yi\u0304n", 0.65);
+    __AddPinyinGlyph(0x7EFF, L"lu\u0308\u0300", 0.65);
     return kOk;
 }
 
@@ -243,13 +245,13 @@ bool PinyinFontBuilder::__ComposeCluster(
     }
     font_.Glyph(info.GlyphIndex, &pGlyph);
     font_.GlyphHorMetric(info.GlyphIndex, mtx);
-    info.OffsetX = x - pGlyph->XMin + charSpace_ / 2;
+    info.OffsetX = x - pGlyph->XMin + pinyinCharSpace_ / 2;
     info.OffsetY = 0;
-    info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + charSpace_;
+    info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + pinyinCharSpace_;
     glyphs.push_back(info);
 
-    centerX = (int16_t)(x + charSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
-    DY = pGlyph->YMax;
+    centerX = (int16_t)(x + pinyinCharSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
+    DY = pGlyph->YMax + pinyinMarkVSpace_;
 
     x += info.AdvanceWidth;
 
@@ -270,8 +272,42 @@ bool PinyinFontBuilder::__ComposeCluster(
             case 0x0300:
                 cluster[1] = 0x0060;
                 break;
+            case 0x0308:
+                cluster[1] = 0x00A8;
+                break;
             }
             info.GlyphIndex = font_.CharToGlyphIndex(cluster[1]);
+            if (info.GlyphIndex == 0) {
+                return false;
+            }
+        }
+        font_.Glyph(info.GlyphIndex, &pGlyph);
+        font_.GlyphHorMetric(info.GlyphIndex, mtx);
+        info.OffsetX = centerX - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
+        info.OffsetY = DY - pGlyph->YMin;
+        info.AdvanceWidth = pGlyph->XMax - pGlyph->XMin;
+        glyphs.push_back(info);
+        DY += (pGlyph->YMax - pGlyph->YMin) + pinyinMarkVSpace_;
+    }
+    if (cluster[2] != 0) {
+        // 2nd mark
+        info.GlyphIndex = font_.CharToGlyphIndex(cluster[2]);
+        if (info.GlyphIndex == 0) {
+            switch (cluster[2]) {
+            case 0x0304:
+                cluster[2] = 0x00AF;
+                break;
+            case 0x0301:
+                cluster[2] = 0x00B4;
+                break;
+            case 0x030C:
+                cluster[2] = 0x02C7;
+                break;
+            case 0x0300:
+                cluster[2] = 0x0060;
+                break;
+            }
+            info.GlyphIndex = font_.CharToGlyphIndex(cluster[2]);
             if (info.GlyphIndex == 0) {
                 return false;
             }
