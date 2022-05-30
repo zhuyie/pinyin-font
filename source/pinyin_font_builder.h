@@ -18,6 +18,7 @@ class PinyinFontBuilder
 
     OpenType_Font font_;
     int16_t charSpace_;
+    int16_t pinyinCharYMin_;
 
 public:
     PinyinFontBuilder();
@@ -26,6 +27,7 @@ public:
     Status Build(const char *sourceFont);
 
 private:
+    int16_t __calcPinyinCharYMin();
     Status __checkRequiredGlyphs();
     Status __AddPinyinGlyphs();
     Status __AddPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio);

@@ -6,7 +6,7 @@
 //------------------------------------------------------------------------------
 
 PinyinFontBuilder::PinyinFontBuilder()
-: charSpace_(0)
+: charSpace_(0), pinyinCharYMin_(0)
 {
 }
 
@@ -25,6 +25,7 @@ Status PinyinFontBuilder::Build(const char *sourceFont)
     }
 
     charSpace_ = (int16_t)((font_.Head().XMax - font_.Head().XMin) * 0.1);
+    pinyinCharYMin_ = __calcPinyinCharYMin();
 
     status = __checkRequiredGlyphs();
     if (status != kOk) {
@@ -45,6 +46,24 @@ Status PinyinFontBuilder::Build(const char *sourceFont)
     }
 
     return kOk;
+}
+
+int16_t PinyinFontBuilder::__calcPinyinCharYMin()
+{
+    static char testChars[] = { 'f', 'g', 'j', 'p', 'q', 'y' };
+    int16_t ymin = 0;
+    for (int i = 0; i < sizeof(testChars) / sizeof(testChars[0]); i++) {
+        uint16_t glyphIndex = font_.CharToGlyphIndex(testChars[i]);
+        if (glyphIndex == 0) {
+            continue;
+        }
+        OpenType_GlyphHeader *pGlyph = NULL;
+        font_.Glyph(glyphIndex, &pGlyph);
+        if (pGlyph->YMin < ymin) {
+            ymin = pGlyph->YMin;
+        }
+    }
+    return ymin;
 }
 
 static uint32_t requiredChars[] = {
@@ -89,9 +108,9 @@ Status PinyinFontBuilder::__AddPinyinGlyph(uint32_t charcode, const std::wstring
     }
     assert(baseGlyph != NULL);
 
-    double pinyinRatio = 0.9 - baseRatio;
+    double pinyinRatio = 1.0 - baseRatio;
     int16_t baseDX = baseHmtx.AdvanceWidth * (1.0 - baseRatio) / 2;
-    int16_t pinyinDY = (int16_t)(font_.Hhea().Ascender * baseRatio) + (int16_t)(font_.Hhea().Descender * (-1) * pinyinRatio);
+    int16_t pinyinDY = (int16_t)(font_.Head().YMax * baseRatio) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio);
     int16_t centerX = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
 
     OpenType_GlyphComposite glyph;
