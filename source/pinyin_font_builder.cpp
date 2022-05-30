@@ -1,12 +1,13 @@
 #include "pinyin_font_builder.h"
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
-#include <string>
 
 //------------------------------------------------------------------------------
 
 PinyinFontBuilder::PinyinFontBuilder()
-: pinyinCharSpace_(0), pinyinMarkVSpace_(0), pinyinCharYMin_(0)
+: baseRatio_(0.65), pinyinRatio_(0.35), 
+  pinyinCharSpace_(0), pinyinMarkVSpace_(0), pinyinCharYMin_(0),
+  baseDY_(0), pinyinDY_(0)
 {
 }
 
@@ -28,9 +29,11 @@ Status PinyinFontBuilder::Build(const char *sourceFont)
     pinyinMarkVSpace_ = (int16_t)(pinyinCharSpace_ * 0.33);
     pinyinCharYMin_ = __calcPinyinCharYMin();
 
-    status = __checkRequiredGlyphs();
-    if (status != kOk) {
-        return status;
+    baseDY_ = font_.Head().YMin * pinyinRatio_ * 0.5;
+    pinyinDY_ = baseDY_ + (int16_t)(font_.Head().YMax * baseRatio_) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio_);
+
+    if (!__checkRequiredGlyphs()) {
+        return kNotSupported;
     }
 
     status = __addPinyinGlyphs();
@@ -73,16 +76,21 @@ static uint32_t requiredChars[] = {
     'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
 };
 
-Status PinyinFontBuilder::__checkRequiredGlyphs()
+bool PinyinFontBuilder::__checkRequiredGlyphs()
 {
     size_t count = (sizeof(requiredChars) / sizeof(requiredChars[0]));
     for (size_t i = 0; i < count; i++) {
         uint16_t glyphID = font_.CharToGlyphIndex(requiredChars[i]);
         if (glyphID == 0) {
-            return kNotSupported;
+            return false;
         }
     }
-    return kOk;
+    return true;
+}
+
+bool PinyinFontBuilder::__isMarkChar(wchar_t c)
+{
+    return (c == 0x0304) || (c == 0x0301) || (c == 0x030C) || (c == 0x0300) || (c == 0x0308);
 }
 
 bool PinyinFontBuilder::__alternativeChar(wchar_t &c)
@@ -99,54 +107,51 @@ bool PinyinFontBuilder::__alternativeChar(wchar_t &c)
 
 Status PinyinFontBuilder::__addPinyinGlyphs()
 {
-    __addPinyinGlyph(0x6C49, L"ha\u0300n", 0.65);
-    __addPinyinGlyph(0x8BED, L"yu\u030C", 0.65);
-    __addPinyinGlyph(0x62FC, L"pi\u0304n", 0.65);
-    __addPinyinGlyph(0x97F3, L"yi\u0304n", 0.65);
-    __addPinyinGlyph(0x7EFF, L"lu\u0308\u0300", 0.65);
+    __addPinyinGlyph(0x6C49, L"ha\u0300n");
+    __addPinyinGlyph(0x8BED, L"yu\u030C");
+    __addPinyinGlyph(0x62FC, L"pi\u0304n");
+    __addPinyinGlyph(0x97F3, L"yi\u0304n");
+    __addPinyinGlyph(0x7EFF, L"lu\u0308\u0300");
     return kOk;
 }
 
-Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio)
+Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin)
 {
-    assert(baseRatio > 0 && baseRatio < 0.9);
-
     uint32_t baseGlyphIndex = font_.CharToGlyphIndex(charcode);
     if (baseGlyphIndex == 0) {
         return kNotFound;
     }
     OpenType_GlyphHeader *baseGlyph = NULL;
     OpenType_LongHorMetric baseHmtx = { 0 };
-    if (font_.Glyph(baseGlyphIndex, &baseGlyph) != kOk || font_.GlyphHorMetric(baseGlyphIndex, baseHmtx) != kOk) {
-        return kError;
-    }
+    font_.Glyph(baseGlyphIndex, &baseGlyph);
+    font_.GlyphHorMetric(baseGlyphIndex, baseHmtx);
     assert(baseGlyph != NULL);
 
-    double pinyinRatio = 1.0 - baseRatio;
-    int16_t baseDX = baseHmtx.AdvanceWidth * (1.0 - baseRatio) / 2;
-    int16_t baseDY = font_.Head().YMin * pinyinRatio * 0.5;
-    int16_t pinyinDY = baseDY + (int16_t)(font_.Head().YMax * baseRatio) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio);
+    int16_t baseDX = baseHmtx.AdvanceWidth * (1.0 - baseRatio_) / 2;
     int16_t centerX = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
 
-    OpenType_GlyphComposite glyph;
+    OpenType_GlyphComposite &glyph = glyph_;
     glyph.NumberOfContours = -1;
     glyph.XMin = baseGlyph->XMin;
     glyph.XMax = baseGlyph->XMax;
     glyph.YMin = baseGlyph->YMin;
     glyph.YMax = baseGlyph->YMax;
+    glyph.SubGlyphs.resize(0);
 
-    std::vector<glyphInfo> pinyinGlyphs;
+    std::vector<glyphInfo> &pinyinGlyphs = pinyinGlyphInfos_;
+    pinyinGlyphs.resize(0);
     int16_t pinyinWidth = 0;
     if (!__composePinyin(pinyin, pinyinGlyphs, pinyinWidth)) {
         return kError;
     }
     for (size_t i = 0; i < pinyinGlyphs.size(); i++) {
         glyphInfo info = pinyinGlyphs[i];
-        uint16_t pinyinDX = centerX - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio);
-        __addSubGlyph(glyph, info.GlyphIndex, pinyinRatio, pinyinDX, pinyinDY + info.OffsetY * pinyinRatio, false);
+        uint16_t pinyinDX = centerX - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio_);
+        __addSubGlyph(glyph, info.GlyphIndex, pinyinRatio_, 
+            pinyinDX, pinyinDY_ + info.OffsetY * pinyinRatio_, false);
     }
 
-    __addSubGlyph(glyph, baseGlyphIndex, baseRatio, baseDX, baseDY, true);
+    __addSubGlyph(glyph, baseGlyphIndex, baseRatio_, baseDX, baseDY_, true);
 
     char name[20] = { 0 };
     sprintf(name, "uni%04X_pinyin", (unsigned int)charcode);
@@ -182,8 +187,6 @@ bool PinyinFontBuilder::__composePinyin(
 {
     glyphs.clear();
     totalWidth = 0;
-
-    glyphs.reserve(pinyin.size());
 
     // 3 kinds of cluster:
     // - ['u']

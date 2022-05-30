@@ -4,6 +4,7 @@
 #include "status.h"
 #include "ot_font.h"
 #include <string>
+#include <vector>
 
 //------------------------------------------------------------------------------
 
@@ -17,9 +18,16 @@ class PinyinFontBuilder
     } glyphInfo;
 
     OpenType_Font font_;
+    double baseRatio_;
+    double pinyinRatio_;
     int16_t pinyinCharSpace_;
     int16_t pinyinMarkVSpace_;
     int16_t pinyinCharYMin_;
+    int16_t baseDY_;
+    int16_t pinyinDY_;
+
+    OpenType_GlyphComposite glyph_;
+    std::vector<glyphInfo> pinyinGlyphInfos_;
 
 public:
     PinyinFontBuilder();
@@ -29,13 +37,11 @@ public:
 
 private:
     int16_t __calcPinyinCharYMin();
-    Status __checkRequiredGlyphs();
-    bool __isMarkChar(wchar_t c) {
-        return (c == 0x0304) || (c == 0x0301) || (c == 0x030C) || (c == 0x0300) || (c == 0x0308);
-    }
+    bool __checkRequiredGlyphs();
+    bool __isMarkChar(wchar_t c);
     bool __alternativeChar(wchar_t &c);
     Status __addPinyinGlyphs();
-    Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio);
+    Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin);
     void __addSubGlyph(OpenType_GlyphComposite &glyph, 
         uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);
     bool __composePinyin(
