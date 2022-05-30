@@ -110,7 +110,8 @@ Status PinyinFontBuilder::__AddPinyinGlyph(uint32_t charcode, const std::wstring
 
     double pinyinRatio = 1.0 - baseRatio;
     int16_t baseDX = baseHmtx.AdvanceWidth * (1.0 - baseRatio) / 2;
-    int16_t pinyinDY = (int16_t)(font_.Head().YMax * baseRatio) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio);
+    int16_t baseDY = font_.Head().YMin * pinyinRatio * 0.5;
+    int16_t pinyinDY = baseDY + (int16_t)(font_.Head().YMax * baseRatio) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio);
     int16_t centerX = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
 
     OpenType_GlyphComposite glyph;
@@ -131,7 +132,7 @@ Status PinyinFontBuilder::__AddPinyinGlyph(uint32_t charcode, const std::wstring
         __AddSubGlyph(glyph, info.GlyphIndex, pinyinRatio, pinyinDX, pinyinDY + info.OffsetY * pinyinRatio, false);
     }
 
-    __AddSubGlyph(glyph, baseGlyphIndex, baseRatio, baseDX, 0, true);
+    __AddSubGlyph(glyph, baseGlyphIndex, baseRatio, baseDX, baseDY, true);
 
     char name[20] = { 0 };
     sprintf(name, "uni%04X_pinyin", (unsigned int)charcode);
