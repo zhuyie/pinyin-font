@@ -30,17 +30,18 @@ public:
 private:
     int16_t __calcPinyinCharYMin();
     Status __checkRequiredGlyphs();
-    Status __AddPinyinGlyphs();
-    Status __AddPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio);
-    void __AddSubGlyph(OpenType_GlyphComposite &glyph, 
-        uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);
-    bool __ComposePinyin(
-        const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth);
-    bool __ComposeCluster(
-        wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
-    bool __IsMarkChar(wchar_t c) {
+    bool __isMarkChar(wchar_t c) {
         return (c == 0x0304) || (c == 0x0301) || (c == 0x030C) || (c == 0x0300) || (c == 0x0308);
     }
+    bool __alternativeChar(wchar_t &c);
+    Status __addPinyinGlyphs();
+    Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin, double baseRatio);
+    void __addSubGlyph(OpenType_GlyphComposite &glyph, 
+        uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);
+    bool __composePinyin(
+        const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth);
+    bool __composeCluster(
+        wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
 };
 
 //------------------------------------------------------------------------------
