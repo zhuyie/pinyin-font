@@ -8,6 +8,8 @@
 
 //------------------------------------------------------------------------------
 
+class PinyinDB;
+
 class PinyinFontBuilder
 {
     typedef struct {
@@ -33,14 +35,14 @@ public:
     PinyinFontBuilder();
     ~PinyinFontBuilder();
 
-    Status Build(const char *sourceFont);
+    Status Build(const char *sourceFont, const PinyinDB &pinyinDB);
 
 private:
     int16_t __calcPinyinCharYMin();
     bool __checkRequiredGlyphs();
     bool __isMarkChar(wchar_t c);
     bool __alternativeChar(wchar_t &c);
-    Status __addPinyinGlyphs();
+    Status __addPinyinGlyphs(const PinyinDB &pinyinDB);
     Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin);
     void __addSubGlyph(OpenType_GlyphComposite &glyph, 
         uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);

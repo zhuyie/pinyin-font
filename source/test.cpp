@@ -1,5 +1,6 @@
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
+#include "pinyin_db.h"
 #include "pinyin_font_builder.h"
 #include <cstdio>
 #include <cstdlib>
@@ -325,9 +326,15 @@ static int rewriteFont(const char *filename)
 
 static int buildFont(const char *filename)
 {
-    PinyinFontBuilder builder;
+    PinyinDB db;
+    Status status = db.Load(nullptr);
+    if (status != kOk) {
+        fprintf(stderr, "Load PinyinDB failed, error=%d\n", status);
+        return 1;
+    }
 
-    Status status = builder.Build(filename);
+    PinyinFontBuilder builder;
+    status = builder.Build(filename, db);
     if (status != kOk) {
         fprintf(stderr, "Build failed, error=%d\n", status);
         return 1;

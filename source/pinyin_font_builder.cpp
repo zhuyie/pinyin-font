@@ -1,6 +1,7 @@
 #include "pinyin_font_builder.h"
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
+#include "pinyin_db.h"
 
 //------------------------------------------------------------------------------
 
@@ -15,7 +16,7 @@ PinyinFontBuilder::~PinyinFontBuilder()
 {
 }
 
-Status PinyinFontBuilder::Build(const char *sourceFont)
+Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB)
 {
     Status status;
 
@@ -36,7 +37,7 @@ Status PinyinFontBuilder::Build(const char *sourceFont)
         return kNotSupported;
     }
 
-    status = __addPinyinGlyphs();
+    status = __addPinyinGlyphs(pinyinDB);
     if (status != kOk) {
         return status;
     }
@@ -105,13 +106,14 @@ bool PinyinFontBuilder::__alternativeChar(wchar_t &c)
     return false;
 }
 
-Status PinyinFontBuilder::__addPinyinGlyphs()
+Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
 {
-    __addPinyinGlyph(0x6C49, L"ha\u0300n");
-    __addPinyinGlyph(0x8BED, L"yu\u030C");
-    __addPinyinGlyph(0x62FC, L"pi\u0304n");
-    __addPinyinGlyph(0x97F3, L"yi\u0304n");
-    __addPinyinGlyph(0x7EFF, L"lu\u0308\u0300");
+    PinyinRecord record;
+    size_t count = pinyinDB.Count();
+    for (size_t i = 0; i < count; i++) {
+        pinyinDB.GetRecord(i, record);
+        __addPinyinGlyph(record.charcode, record.pinyin0);
+    }
     return kOk;
 }
 
