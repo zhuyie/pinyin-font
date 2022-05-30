@@ -147,11 +147,15 @@ bool PinyinFontBuilder::__ComposePinyin(
     totalWidth = 0;
 
     glyphs.reserve(pinyin.size());
+
+    // 3 kinds of cluster:
+    // - ['u']
+    // - ['u', u+0304]
+    // - ['u', u+0308, u+0304]
     wchar_t cluster[3] = { 0 };
     for (size_t i = 0; i < pinyin.size(); i++) {
         wchar_t c = pinyin[i];
         if (__IsMarkChar(c)) {
-            // a combining mark
             if (cluster[0] == 0) {
                 return false;
             } else if (cluster[1] == 0) {
@@ -162,13 +166,15 @@ bool PinyinFontBuilder::__ComposePinyin(
                 return false;
             }
         } else {
-            // a normal character
+            // previous cluster ended
             if (!__ComposeCluster(cluster, glyphs, totalWidth)) {
                 return false;
             }
+            // start a new cluster
             cluster[0] = c;
         }
     }
+    // last cluster
     if (!__ComposeCluster(cluster, glyphs, totalWidth)) {
         return false;
     }
@@ -201,7 +207,7 @@ bool PinyinFontBuilder::__ComposeCluster(
         }
         cluster[1] = 0;
     }
-    
+
     glyphInfo info;
     int16_t centerX, DY;
     OpenType_GlyphHeader *pGlyph = NULL;
@@ -219,7 +225,7 @@ bool PinyinFontBuilder::__ComposeCluster(
     info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + 20;
     glyphs.push_back(info);
 
-    centerX = (int16_t)(x - pGlyph->XMin + (pGlyph->XMax - pGlyph->XMin) / 2);
+    centerX = (int16_t)(x + (pGlyph->XMax - pGlyph->XMin) / 2);
     DY = pGlyph->YMax;
 
     x += info.AdvanceWidth;
