@@ -111,6 +111,13 @@ bool PinyinFontBuilder::__alternativeChar(wchar_t &c)
 void PinyinFontBuilder::__buildSubstitutions()
 {
     static wchar_t s_substitution[][3] = {
+        // ---- mandatory ----
+        { 'i', 0x0304, 0x012B },  // ī
+        { 'i', 0x0301, 0x00ED },  // í
+        { 'i', 0x030C, 0x01D0 },  // ǐ
+        { 'i', 0x0300, 0x00EC },  // ì
+
+        // ---- optional ----
         { 'u', 0x0308, 0x00FC },  // ü
 
         { 'a', 0x0304, 0x0101 },  // ā
@@ -140,7 +147,7 @@ void PinyinFontBuilder::__buildSubstitutions()
     };
     for (int i = 0; i < sizeof(s_substitution) / sizeof(s_substitution[0]); i++) {
         uint16_t glyphIndex = font_.CharToGlyphIndex(s_substitution[i][2]);
-        if (glyphIndex != 0) {
+        if (i < 4 || glyphIndex != 0) {
             uint64_t key = (uint64_t)(s_substitution[i][0]) << 32 | 
                            (uint64_t)(s_substitution[i][1]);
             substitutions_[key] = s_substitution[i][2];
@@ -271,25 +278,6 @@ bool PinyinFontBuilder::__composeCluster(
 {
     if (cluster[0] == 0) {
         return true;
-    }
-    if (cluster[0] == 'i' && cluster[1] != 0) {
-        switch (cluster[1]) {
-        case 0x0304:
-            cluster[0] = 0x012B;  // Latin Small Letter I with Macron
-            break;
-        case 0x0301:
-            cluster[0] = 0x00ED;  // Latin Small Letter I with Acute
-            break;
-        case 0x030C:
-            cluster[0] = 0x01D0;  // Latin Small Letter I with Caron
-            break;
-        case 0x0300:
-            cluster[0] = 0x00EC;  // Latin Small Letter I with Grave
-            break;
-        default:
-            return false;
-        }
-        cluster[1] = cluster[2] = 0;
     }
 
     for (;;) {
