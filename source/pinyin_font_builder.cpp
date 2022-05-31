@@ -64,7 +64,7 @@ int16_t PinyinFontBuilder::__calcPinyinCharYMin()
         if (glyphIndex == 0) {
             continue;
         }
-        OpenType_GlyphHeader *pGlyph = NULL;
+        const OpenType_GlyphHeader *pGlyph = NULL;
         font_.Glyph(glyphIndex, &pGlyph);
         if (pGlyph->YMin < ymin) {
             ymin = pGlyph->YMin;
@@ -172,7 +172,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     if (baseGlyphIndex == 0) {
         return kNotFound;
     }
-    OpenType_GlyphHeader *baseGlyph = NULL;
+    const OpenType_GlyphHeader *baseGlyph = NULL;
     OpenType_LongHorMetric baseHmtx = { 0 };
     font_.Glyph(baseGlyphIndex, &baseGlyph);
     font_.GlyphHorMetric(baseGlyphIndex, baseHmtx);
@@ -296,7 +296,7 @@ bool PinyinFontBuilder::__composeCluster(
 
     glyphInfo info;
     int16_t centerX, DY;
-    OpenType_GlyphHeader *pGlyph = NULL;
+    const OpenType_GlyphHeader *pGlyph = NULL;
     OpenType_LongHorMetric mtx = { 0 };
 
     // normal character

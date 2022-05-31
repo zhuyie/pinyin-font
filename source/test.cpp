@@ -115,7 +115,7 @@ static void dumpGlyph(const OpenType_Font &font)
     fprintf(stdout, "  Count = %d\n", font.GlyphCount());
     for (int i = 0; i < 10; i++) {
         int index = std::rand() % font.GlyphCount();
-        OpenType_GlyphHeader *pHeader = NULL;
+        const OpenType_GlyphHeader *pHeader = NULL;
         font.Glyph(index, &pHeader);
         if (pHeader == NULL) {
             fprintf(stdout, "  Glyph_%d = <NoOutline>\n", index);

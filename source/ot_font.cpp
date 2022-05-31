@@ -22,7 +22,7 @@ int OpenType_Font::GlyphCount() const
     return (int)glyphs_.size();
 }
 
-Status OpenType_Font::Glyph(int index, OpenType_GlyphHeader **ppGlyph) const
+Status OpenType_Font::Glyph(int index, const OpenType_GlyphHeader **ppGlyph) const
 {
     assert(ppGlyph);
     if (index < 0 || index >= (int)glyphs_.size())

@@ -247,7 +247,7 @@ public:
     const OpenType_Hhea& Hhea() const { return hhea_; }
 
     int GlyphCount() const;
-    Status Glyph(int index, OpenType_GlyphHeader **ppGlyph) const;
+    Status Glyph(int index, const OpenType_GlyphHeader **ppGlyph) const;
     Status GlyphName(int index, std::string &name) const;
     Status GlyphHorMetric(int index, OpenType_LongHorMetric &metric) const;
 
