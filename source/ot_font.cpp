@@ -103,10 +103,16 @@ void OpenType_Font::Clear()
     names_.clear();
 }
 
-Status OpenType_Font::AddGlyph(const OpenType_GlyphHeader *glyph, const OpenType_LongHorMetric *mtx, const char* name)
+Status OpenType_Font::AddGlyph(
+    const OpenType_GlyphHeader *glyph, 
+    const OpenType_LongHorMetric *mtx, 
+    const std::string &name,
+    uint16_t &glyphIndex)
 {
     assert(glyph);
     assert(mtx);
+
+    glyphIndex = 0;
 
     if (glyphs_.size() == 65535) {
         return kError;
@@ -144,6 +150,21 @@ Status OpenType_Font::AddGlyph(const OpenType_GlyphHeader *glyph, const OpenType
 
     maxp_.NumGlyphs++;
 
+    assert(glyphs_.size() == hmtx_.size());
+    assert(glyphs_.size() == glyphNames_.size());
+    assert(glyphs_.size() == (size_t)maxp_.NumGlyphs);
+    glyphIndex = glyphs_.size() - 1;
+
+    return kOk;
+}
+
+Status OpenType_Font::SetCmap(
+    const std::vector<CmapSequentialMapGroup> &groups)
+{
+    if (groups.empty()) {
+        return kError;
+    }
+    char2index_ = groups;
     return kOk;
 }
 

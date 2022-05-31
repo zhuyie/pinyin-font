@@ -1,4 +1,5 @@
 #include "pinyin_db.h"
+#include <algorithm>
 
 //------------------------------------------------------------------------------
 
@@ -65,4 +66,11 @@ void PinyinDB::__addTestDataset()
     record.charcode = 0x5C71;
     record.pinyin0 = L"sha\u0304n";
     records_.push_back(record);
+
+    std::sort(
+        records_.begin(), records_.end(), 
+        [](const PinyinRecord &a, const PinyinRecord &b) -> bool {
+            return a.charcode < b.charcode;
+        }
+    );
 }

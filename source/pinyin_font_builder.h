@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <map>
 
 //------------------------------------------------------------------------------
 
@@ -30,6 +31,8 @@ class PinyinFontBuilder
     int16_t pinyinDY_;
     std::unordered_map<uint64_t, wchar_t> substitutions_;
 
+    std::map<wchar_t, uint16_t> char2index_;
+
     OpenType_GlyphComposite glyph_;
     std::vector<glyphInfo> pinyinGlyphInfos_;
 
@@ -47,12 +50,14 @@ private:
     void __buildSubstitutions();
     Status __addPinyinGlyphs(const PinyinDB &pinyinDB);
     Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin);
-    void __addSubGlyph(OpenType_GlyphComposite &glyph, 
+    void __addSubGlyph(
+        OpenType_GlyphComposite &glyph, 
         uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);
     bool __composePinyin(
         const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth);
     bool __composeCluster(
         wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
+    Status __updateCmap();
 };
 
 //------------------------------------------------------------------------------

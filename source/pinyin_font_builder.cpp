@@ -44,6 +44,11 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
         return status;
     }
 
+    status = __updateCmap();
+    if (status != kOk) {
+        return status;
+    }
+
     std::string outFile = sourceFont;
     outFile += ".pinyin.ttf";
     OpenType_Font_Writer writer;
@@ -186,7 +191,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     glyph.XMin = baseGlyph->XMin;
     glyph.XMax = baseGlyph->XMax;
     glyph.YMin = baseGlyph->YMin;
-    glyph.YMax = baseGlyph->YMax;
+    glyph.YMax = font_.Head().YMax;  // TODO
     glyph.SubGlyphs.resize(0);
 
     std::vector<glyphInfo> &pinyinGlyphs = pinyinGlyphInfos_;
@@ -205,12 +210,15 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     __addSubGlyph(glyph, baseGlyphIndex, baseRatio_, baseDX, baseDY_, true);
 
     char name[20] = { 0 };
-    sprintf(name, "uni%04X_pinyin", (unsigned int)charcode);
+    sprintf(name, "uni%04X_py00", (unsigned int)charcode);
 
-    Status status = font_.AddGlyph(&glyph, &baseHmtx, name);
+    uint16_t glyphIndex;
+    Status status = font_.AddGlyph(&glyph, &baseHmtx, name, glyphIndex);
     if (status != kOk) {
         return status;
     }
+
+    char2index_[charcode] = glyphIndex;
 
     return kOk;
 }
@@ -358,4 +366,29 @@ bool PinyinFontBuilder::__composeCluster(
 
     cluster[0] = cluster[1] = cluster[2] = 0;
     return true;
+}
+
+Status PinyinFontBuilder::__updateCmap()
+{
+    std::vector<CmapSequentialMapGroup> groups;
+    CmapSequentialMapGroup group = { 0 };
+    for (auto iter = char2index_.begin(); iter != char2index_.end(); iter++) {
+        wchar_t charcode = iter->first;
+        uint16_t glyphID = iter->second;
+        if (charcode != group.endCharCode + 1 ||
+            glyphID != (group.startGlyphID + (group.endCharCode - group.startCharCode) + 1)) {
+            // current group ended
+            groups.push_back(group);
+            // start a new group
+            group.startCharCode = charcode;
+            group.endCharCode = charcode;
+            group.startGlyphID = glyphID;
+        } else {
+            group.endCharCode++;
+        }
+    }
+    // last group
+    groups.push_back(group);
+
+    return font_.SetCmap(groups);
 }

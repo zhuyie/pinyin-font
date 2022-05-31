@@ -256,7 +256,13 @@ public:
     Status Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records) const;
 
     void Clear();
-    Status AddGlyph(const OpenType_GlyphHeader *glyph, const OpenType_LongHorMetric *mtx, const char* name);
+    Status AddGlyph(
+        const OpenType_GlyphHeader *glyph, 
+        const OpenType_LongHorMetric *mtx, 
+        const std::string &name, 
+        uint16_t &glyphIndex);
+    Status SetCmap(
+        const std::vector<CmapSequentialMapGroup> &groups);
 
 private:
     OpenType_Head head_;
