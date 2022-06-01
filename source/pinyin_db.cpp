@@ -17,7 +17,7 @@ PinyinDB::~PinyinDB()
 
 Status PinyinDB::Load(const char* dbFile)
 {
-    if (dbFile == nullptr) {
+    if (dbFile == nullptr || dbFile[0] == '\0') {
         __addTestDataset();
         return kOk;
     }
@@ -147,5 +147,48 @@ bool PinyinDB::__extractPinyins(const std::wstring &pinyins, PinyinRecord &recor
 
 void PinyinDB::__normalize(std::wstring &pinyin)
 {
-    // TODO
+    static const wchar_t* d[][2] = {
+        { L"\x0101", L"a\x0304" },  // ā
+        { L"\x00E1", L"a\x0301" },  // á
+        { L"\x01CE", L"a\x030C" },  // ǎ
+        { L"\x00E0", L"a\x0300" },  // à
+
+        { L"\x0113", L"e\x0304" },  // ē
+        { L"\x00E9", L"e\x0301" },  // é
+        { L"\x011B", L"e\x030C" },  // ě
+        { L"\x00E8", L"e\x0300" },  // è
+
+        { L"\x012B", L"i\x0304" },  // ī
+        { L"\x00ED", L"i\x0301" },  // í
+        { L"\x01D0", L"i\x030C" },  // ǐ
+        { L"\x00EC", L"i\x0300" },  // ì
+
+        { L"\x014D", L"o\x0304" },  // ō
+        { L"\x00F3", L"o\x0301" },  // ó
+        { L"\x01D2", L"o\x030C" },  // ǒ
+        { L"\x00F2", L"o\x0300" },  // ò
+
+        { L"\x016B", L"u\x0304" },  // ū
+        { L"\x00FA", L"u\x0301" },  // ú
+        { L"\x01D4", L"u\x030C" },  // ǔ
+        { L"\x00F9", L"u\x0300" },  // ù
+
+        { L"\x00FC", L"u\x0308" },  // ü
+        { L"\x01D6", L"u\x0308\x0304" },  // ǖ
+        { L"\x01D8", L"u\x0308\x0301" },  // ǘ
+        { L"\x01DA", L"u\x0308\x030C" },  // ǚ
+        { L"\x01DC", L"u\x0308\x0300" },  // ù
+    };
+    static const int dcount = sizeof(d) / sizeof(d[0]);
+
+    for (size_t i = 0; i < pinyin.size(); i++) {
+        wchar_t c = pinyin[i];
+        for (int j = 0; j < dcount; j++) {
+            if (c == d[j][0][0]) {
+                pinyin.replace(i, 1, d[j][1]);
+                i += wcslen(d[j][1]) - 1;
+                break;
+            }
+        }
+    }
 }

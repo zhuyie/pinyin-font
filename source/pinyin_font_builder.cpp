@@ -201,7 +201,9 @@ Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
     for (size_t i = 0; i < count; i++) {
         pinyinDB.GetRecord(i, record);
         status = __addPinyinGlyph(record.charcode, record.pinyin[0]);
-        if (status == kOk) {
+        if (status == kNotFound) {
+            continue;
+        } else if (status == kOk) {
             glyphCountAddOK_++;
         } else {
             glyphCountAddFailed_++;
