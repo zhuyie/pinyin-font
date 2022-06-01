@@ -36,11 +36,27 @@ class PinyinFontBuilder
     OpenType_GlyphComposite glyph_;
     std::vector<glyphInfo> pinyinGlyphInfos_;
 
+    uint16_t glyphCountOld_;
+    uint16_t glyphCountAddOK_;
+    uint16_t glyphCountAddFailed_;
+    uint32_t parseTime_;
+    uint32_t synthesisTime_;
+    uint32_t writeTime_;
+
 public:
     PinyinFontBuilder();
     ~PinyinFontBuilder();
 
-    Status Build(const char *sourceFont, const PinyinDB &pinyinDB);
+    Status Build(
+        const char *sourceFont, 
+        const PinyinDB &pinyinDB);
+    void GetStats(
+        uint16_t &glyphCountOld, 
+        uint16_t &glyphCountAddOK, 
+        uint16_t &glyphCountAddFailed,
+        uint32_t &parseTime, 
+        uint32_t &synthesisTime, 
+        uint32_t &writeTime);
 
 private:
     int16_t __calcPinyinCharYMin();

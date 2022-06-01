@@ -185,6 +185,7 @@ static int dumpFont(const char *filename)
     dumpHmtx(font);
     dumpCmap(font);
 
+    fprintf(stdout, "\n");
     return 0;
 } 
 
@@ -293,6 +294,7 @@ static int benchParse(const char *path)
             minTime/1000.0, 
             maxTime/1000.0);
     }
+    fprintf(stdout, "\n");
     return 0;
 }
 
@@ -319,6 +321,7 @@ static int rewriteFont(const char *filename)
     }
     fprintf(stdout, "ReWrite succeeded\n");
 
+    fprintf(stdout, "\n");
     return 0;
 }
 
@@ -326,12 +329,16 @@ static int rewriteFont(const char *filename)
 
 static int buildFont(const char *filename)
 {
+    const char *dbFile = "data/TGHZ2013.txt";
     PinyinDB db;
-    Status status = db.Load(nullptr);
+    fprintf(stdout, "DBFile = %s\n", dbFile);
+    Status status = db.Load(dbFile);
     if (status != kOk) {
         fprintf(stderr, "Load PinyinDB failed, error=%d\n", status);
         return 1;
     }
+    fprintf(stdout, "PinyinDB loaded, records = %u\n", (unsigned int)db.Count());
+    fprintf(stdout, "\n");
 
     PinyinFontBuilder builder;
     status = builder.Build(filename, db);
@@ -339,8 +346,23 @@ static int buildFont(const char *filename)
         fprintf(stderr, "Build failed, error=%d\n", status);
         return 1;
     }
-    fprintf(stdout, "Build succeeded\n");
+    std::string outfile = filename;
+    outfile += ".pinyin.ttf";
+    fprintf(stdout, "Build succeeded, outfile = %s\n", outfile.c_str());
 
+    uint16_t glyphCountOld, glyphCountAddOK, glyphCountAddFailed;
+    uint32_t parseTime, synthesisTime, writeTime;
+    builder.GetStats(
+        glyphCountOld, glyphCountAddOK, glyphCountAddFailed, 
+        parseTime, synthesisTime, writeTime);
+    fprintf(stdout, "  GlyphCountOld = %d\n", (int)glyphCountOld);
+    fprintf(stdout, "          AddOK = %d\n", (int)glyphCountAddOK);
+    fprintf(stdout, "      AddFailed = %d\n", (int)glyphCountAddFailed);
+    fprintf(stdout, "      ParseTime = %.2fms\n", parseTime / 1000.0);
+    fprintf(stdout, "  SynthesisTime = %.2fms\n", synthesisTime / 1000.0);
+    fprintf(stdout, "      WriteTime = %.2fms\n", writeTime / 1000.0);
+
+    fprintf(stdout, "\n");
     return 0;
 }
 

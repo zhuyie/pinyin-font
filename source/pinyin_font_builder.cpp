@@ -2,13 +2,17 @@
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
 #include "pinyin_db.h"
+#include <chrono>
+using namespace std::chrono;
 
 //------------------------------------------------------------------------------
 
 PinyinFontBuilder::PinyinFontBuilder()
 : baseRatio_(0.65), pinyinRatio_(0.35), 
   pinyinCharSpace_(0), pinyinMarkVSpace_(0), pinyinCharYMin_(0),
-  baseDY_(0), pinyinDY_(0)
+  baseDY_(0), pinyinDY_(0),
+  glyphCountOld_(0), glyphCountAddOK_(0), glyphCountAddFailed_(0),
+  parseTime_(0), synthesisTime_(0), writeTime_(0)
 {
 }
 
@@ -19,12 +23,17 @@ PinyinFontBuilder::~PinyinFontBuilder()
 Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB)
 {
     Status status;
-
+    auto start = system_clock::now();
+    
     OpenType_Font_Parser parser;
     status = parser.Parse(sourceFont, &font_);
     if (status != kOk) {
         return status;
     }
+
+    auto parseDone = system_clock::now();
+
+    glyphCountOld_ = font_.GlyphCount();
 
     pinyinCharSpace_ = (int16_t)((font_.Head().XMax - font_.Head().XMin) * 0.1);
     pinyinMarkVSpace_ = (int16_t)(pinyinCharSpace_ * 0.33);
@@ -49,6 +58,8 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
         return status;
     }
 
+    auto synthesisDone = system_clock::now();
+
     std::string outFile = sourceFont;
     outFile += ".pinyin.ttf";
     OpenType_Font_Writer writer;
@@ -57,7 +68,29 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
         return status;
     }
 
+    auto writeDone = system_clock::now();
+
+    parseTime_ = (uint32_t)(duration_cast<microseconds>(parseDone - start).count());
+    synthesisTime_ = (uint32_t)(duration_cast<microseconds>(synthesisDone - parseDone).count());
+    writeTime_ = (uint32_t)(duration_cast<microseconds>(writeDone - synthesisDone).count());
+
     return kOk;
+}
+
+void PinyinFontBuilder::GetStats(
+    uint16_t &glyphCountOld, 
+    uint16_t &glyphCountAddOK, 
+    uint16_t &glyphCountAddFailed,
+    uint32_t &parseTime, 
+    uint32_t &synthesisTime, 
+    uint32_t &writeTime)
+{
+    glyphCountOld = glyphCountOld_;
+    glyphCountAddOK = glyphCountAddOK_;
+    glyphCountAddFailed = glyphCountAddFailed_;
+    parseTime = parseTime_;
+    synthesisTime = synthesisTime_;
+    writeTime = writeTime_;
 }
 
 int16_t PinyinFontBuilder::__calcPinyinCharYMin()
@@ -162,11 +195,17 @@ void PinyinFontBuilder::__buildSubstitutions()
 
 Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
 {
+    Status status;
     PinyinRecord record;
     size_t count = pinyinDB.Count();
     for (size_t i = 0; i < count; i++) {
         pinyinDB.GetRecord(i, record);
-        __addPinyinGlyph(record.charcode, record.pinyin0);
+        status = __addPinyinGlyph(record.charcode, record.pinyin[0]);
+        if (status == kOk) {
+            glyphCountAddOK_++;
+        } else {
+            glyphCountAddFailed_++;
+        }
     }
     return kOk;
 }
