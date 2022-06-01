@@ -11,10 +11,7 @@ class PinyinRecord
 {
 public:
     wchar_t charcode;
-    std::wstring pinyin0;
-    std::wstring pinyin1;
-    std::wstring pinyin2;
-    std::wstring pinyin3;
+    std::wstring pinyin[4];
 };
 
 class PinyinDB
@@ -32,6 +29,9 @@ public:
 
 private:
     void __addTestDataset();
+    void __sort();
+    bool __extractPinyins(const std::wstring &pinyins, PinyinRecord &record);
+    void __normalize(std::wstring &pinyin);
 };
 
 //------------------------------------------------------------------------------
