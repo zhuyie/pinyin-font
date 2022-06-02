@@ -22,6 +22,10 @@ Status PinyinDB::Load(const char* dbFile)
         return kOk;
     }
 
+    // The text files using UTF-8 and Unix line endings.
+    // Each of the lines is one entry, with three, tab-separated fields: 
+    // the character, the Unicode scalar value, and a comma-separated list of one or more pīnyīn readings.
+    // see: https://github.com/zhuyie/pinyin-db
     std::wifstream file(dbFile);
     if (!file.is_open()) {
         return kFileError;
@@ -31,7 +35,6 @@ Status PinyinDB::Load(const char* dbFile)
     std::wstring line, hanzi, code, pinyins;
     PinyinRecord record;
     while (std::getline(file, line)) {
-        // format: hanzi \t code \t pinyins
         // 伟	4F1F	wěi
         // 传	4F20	chuán,zhuàn
         size_t tab0 = line.find(L'\t', 0);
@@ -177,7 +180,7 @@ void PinyinDB::__normalize(std::wstring &pinyin)
         { L"\x01D6", L"u\x0308\x0304" },  // ǖ
         { L"\x01D8", L"u\x0308\x0301" },  // ǘ
         { L"\x01DA", L"u\x0308\x030C" },  // ǚ
-        { L"\x01DC", L"u\x0308\x0300" },  // ù
+        { L"\x01DC", L"u\x0308\x0300" },  // ǜ
     };
     static const int dcount = sizeof(d) / sizeof(d[0]);
 
