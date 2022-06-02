@@ -751,12 +751,12 @@ void OpenType_Font_Writer::__updateChecksumAdjustment(uint16_t numTables)
     const uint8_t *b = &(buf_[0]);
     uint32_t length = 12 + 16 * numTables;
     sum = __checksum(b, length);  // checksum of table directory
-    b += length;
+    b += 12;
     for (uint16_t i = 0; i < numTables; i++) {
         sum += u4(b + 4);  // checksum of this table
         b += 16;
     }
 
     uint8_t* checksumAdjustment = &buf_[0] + checksumAdjustmentOffset_;
-    put_u4(checksumAdjustment, sum - 0xB1B0AFBA);
+    put_u4(checksumAdjustment, 0xB1B0AFBAu - sum);
 }
