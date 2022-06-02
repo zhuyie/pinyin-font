@@ -29,6 +29,8 @@ target_include_directories(pinyinfont
     PRIVATE "include")
 if (MSVC)
     target_compile_definitions(pinyinfont PRIVATE "_CRT_SECURE_NO_WARNINGS")
+    # https://docs.microsoft.com/en-us/cpp/build/reference/source-charset-set-source-character-set?view=msvc-160
+    target_compile_options(pinyinfont PRIVATE /source-charset:utf-8)
 endif()
 
 add_executable(pinyinfont_test
