@@ -758,6 +758,6 @@ void OpenType_Font_Writer::__updateChecksumAdjustment(uint16_t numTables)
         b += 16;
     }
 
-    uint8_t* checksumAdjustment = (uint8_t*)b + checksumAdjustmentOffset_;
+    uint8_t* checksumAdjustment = &buf_[0] + checksumAdjustmentOffset_;
     put_u4(checksumAdjustment, sum - 0xB1B0AFBA);
 }
