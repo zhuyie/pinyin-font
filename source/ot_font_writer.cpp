@@ -95,15 +95,14 @@ Status OpenType_Font_Writer::__writeFileHeader(uint16_t numTables)
     return kOk;
 }
 
-uint32_t OpenType_Font_Writer::__checksum(const uint8_t *buf, uint32_t length)
+uint32_t OpenType_Font_Writer::__checksum(const uint8_t *table, uint32_t length)
 {
     assert (0 == (length & 3));
-    const uint32_t *table = (const uint32_t*)buf;
-    const uint32_t *tableEnd = table + length / 4;
+    const uint8_t *tableEnd = table + length;
     uint32_t sum = 0;
-    while (table < tableEnd) {
-        sum += *table;
-        table++;
+    while ((table + 4) <= tableEnd) {
+        sum += u4(table);
+        table += 4;
     }
     return sum;
 }
