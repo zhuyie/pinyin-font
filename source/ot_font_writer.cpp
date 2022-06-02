@@ -7,7 +7,7 @@
 //------------------------------------------------------------------------------
 
 OpenType_Font_Writer::OpenType_Font_Writer()
-: font_(NULL), checksumAdjustment_(NULL)
+: font_(NULL), checksumAdjustmentOffset_(0)
 {
 }
 
@@ -139,7 +139,7 @@ Status OpenType_Font_Writer::__writeTableHead(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, 54);
 
-    checksumAdjustment_ = b + 8;
+    checksumAdjustmentOffset_ = offset + 8;
 
     return kOk;
 }
@@ -746,7 +746,7 @@ Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
 
 void OpenType_Font_Writer::__updateChecksumAdjustment(uint16_t numTables)
 {
-    assert(checksumAdjustment_ != NULL);
+    assert(checksumAdjustmentOffset_ != 0);
 
     uint32_t sum = 0;
     const uint8_t *b = &(buf_[0]);
@@ -757,5 +757,7 @@ void OpenType_Font_Writer::__updateChecksumAdjustment(uint16_t numTables)
         sum += u4(b + 4);  // checksum of this table
         b += 16;
     }
-    *checksumAdjustment_ = sum - 0xB1B0AFBA;
+
+    uint8_t* checksumAdjustment = (uint8_t*)b + checksumAdjustmentOffset_;
+    put_u4(checksumAdjustment, sum - 0xB1B0AFBA);
 }

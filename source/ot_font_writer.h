@@ -10,7 +10,7 @@ class OpenType_Font_Writer
 {
     const OpenType_Font *font_;
     std::vector<uint8_t> buf_;
-    uint8_t *checksumAdjustment_;
+    size_t checksumAdjustmentOffset_;
 
 public:
     OpenType_Font_Writer();
