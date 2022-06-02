@@ -153,7 +153,7 @@ Status OpenType_Font::AddGlyph(
     assert(glyphs_.size() == hmtx_.size());
     assert(glyphs_.size() == glyphNames_.size());
     assert(glyphs_.size() == (size_t)maxp_.NumGlyphs);
-    glyphIndex = glyphs_.size() - 1;
+    glyphIndex = (uint16_t)(glyphs_.size() - 1);
 
     return kOk;
 }

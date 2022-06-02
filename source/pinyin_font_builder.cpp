@@ -2,6 +2,7 @@
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
 #include "pinyin_db.h"
+#include <cassert>
 #include <chrono>
 using namespace std::chrono;
 
@@ -39,7 +40,7 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
     pinyinMarkVSpace_ = (int16_t)(pinyinCharSpace_ * 0.33);
     pinyinCharYMin_ = __calcPinyinCharYMin();
 
-    baseDY_ = font_.Head().YMin * pinyinRatio_ * 0.5;
+    baseDY_ = (int16_t)(font_.Head().YMin * pinyinRatio_ * 0.5);
     pinyinDY_ = baseDY_ + (int16_t)(font_.Head().YMax * baseRatio_) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio_);
 
     if (!__checkRequiredGlyphs()) {
@@ -224,7 +225,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     font_.GlyphHorMetric(baseGlyphIndex, baseHmtx);
     assert(baseGlyph != NULL);
 
-    int16_t baseDX = baseHmtx.AdvanceWidth * (1.0 - baseRatio_) / 2;
+    int16_t baseDX = (int16_t)(baseHmtx.AdvanceWidth * (1.0 - baseRatio_) / 2);
     int16_t centerX = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
 
     OpenType_GlyphComposite &glyph = glyph_;
@@ -245,7 +246,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
         glyphInfo info = pinyinGlyphs[i];
         uint16_t pinyinDX = centerX - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio_);
         __addSubGlyph(glyph, info.GlyphIndex, pinyinRatio_, 
-            pinyinDX, pinyinDY_ + info.OffsetY * pinyinRatio_, false);
+            pinyinDX, (int16_t)(pinyinDY_ + info.OffsetY * pinyinRatio_), false);
     }
 
     __addSubGlyph(glyph, baseGlyphIndex, baseRatio_, baseDX, baseDY_, true);

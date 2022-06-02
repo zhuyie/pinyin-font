@@ -1,6 +1,7 @@
 #include "ot_cmap.h"
 #include "utility.h"
 #include <vector>
+#include <cassert>
 
 //------------------------------------------------------------------------------
 
