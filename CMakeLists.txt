@@ -42,3 +42,6 @@ add_executable(font_table_dump
     tools/font_table_dump.cpp)
 target_include_directories(font_table_dump
     PRIVATE "source")
+if (MSVC)
+    target_compile_definitions(font_table_dump PRIVATE "_CRT_SECURE_NO_WARNINGS")
+endif()
