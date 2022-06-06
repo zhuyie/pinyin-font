@@ -27,12 +27,15 @@ static bool __readWholeFile(FILE *f, std::vector<uint8_t> &data)
 
 int main(int argc, char* argv[])
 {
-    if (argc < 3) {
-        printf("usage: %s filename tablename\n", argv[0]);
+    std::string filename, tablename;
+    if (argc < 2) {
+        printf("usage: %s filename [tablename]\n", argv[0]);
         return 1;
     }
-    std::string filename = argv[1];
-    std::string tablename = argv[2];
+    filename = argv[1];
+    if (argc > 2) {
+        tablename = argv[2];
+    }
 
     FILE *inFile = fopen(filename.c_str(), "rb");
     if (inFile == NULL) {
@@ -75,17 +78,26 @@ int main(int argc, char* argv[])
 
     uint32_t tableOffset = 0;
     uint32_t tableLength = 0;
+    printf("[tag]\t[checksum]\t[offset]\t[length]\n");
     for (int i = 0; i < numTables; i++) {
         size_t x = offset + i*16; // the offset of the current table start
         char name[5] = { 0 };
         memcpy(name, data + x, 4);
+        uint32_t checksum = u4(data + x + 4);
+        uint32_t offset = u4(data + x + 8);
+        uint32_t length = u4(data + x + 12);
+        printf("%s\t%08x\t%08x\t%08x\n", name, checksum, offset, length);
+
         if (strcmp(name, tablename.c_str()) == 0) {
-            tableOffset = u4(data + x + 8);
-            tableLength = u4(data + x + 12);
-            break;
+            tableOffset = offset;
+            tableLength = length;
         }
     }
+    printf("\n");
 
+    if (tablename.empty()) {
+        return 0;
+    }
     if (tableOffset == 0) {
         printf("table '%s' not found\n", tablename.c_str());
         return 1;
