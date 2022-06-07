@@ -720,34 +720,99 @@ Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
 {
+    // number of segments in format 4 subtable
+    size_t segCount = 0;
+    while (segCount < font_->char2index_.size()) {
+        const CmapSequentialMapGroup &group = font_->char2index_[segCount];
+        if (group.startCharCode >= 0xffff) {
+            break;
+        }
+        segCount++;
+    }
+    segCount += 1;  // the terminate segment
+    if (segCount > 32767) {
+        segCount = 32767;
+    }
+    uint16_t entrySelector = (uint16_t)(std::floor(std::log2(segCount)));
+    uint16_t searchRange = (uint16_t)(std::exp2(entrySelector) * 2);
+    uint16_t rangeShift = segCount * 2 - searchRange;
+
+    uint32_t format4Len = 16 + 8 * segCount;
+    uint32_t format12Len = 16 + (uint32_t)font_->char2index_.size() * 12;
+    uint32_t length = 20 + format4Len + format12Len;
+
     size_t offset = buf_.size();
-    uint32_t length = 28 + (uint32_t)font_->char2index_.size() * 12;
     buf_.resize(offset + length);
-
     uint8_t *b = &(buf_[offset]);
-    put_u2(b + 0,  0);   // version
-    put_u2(b + 2,  1);   // numTables
-    put_u2(b + 4,  3);   // platformID
-    put_u2(b + 6,  10);  // encodingID
-    put_u4(b + 8,  12);  // subtableOffset
+    uint8_t *bstart = b;
 
-    put_u2(b + 12, 12);  // format 12
-    put_u2(b + 14, 0);   // reserved
-    put_u4(b + 16, length - 12);  // subtable length
-    put_u4(b + 20, 0);   // language
-    put_u4(b + 24, (uint32_t)font_->char2index_.size());   // numGroups
+    put_u2(b + 0,  0);  // version = 0
+    put_u2(b + 2,  2);  // numTables = 2
+    // EncodingRecord: 3,1
+    put_u2(b + 4,  3);
+    put_u2(b + 6,  1);
+    put_u4(b + 8,  20);
+    // EncodingRecord: 3,10
+    put_u2(b + 12, 3);
+    put_u2(b + 14, 10);
+    put_u4(b + 16, 20 + format4Len);
+    b += 20;
 
+    put_u2(b + 0,  4);           // format 4
+    put_u2(b + 2,  format4Len);  // subtable length
+    put_u2(b + 4,  0);           // language
+    put_u2(b + 6,  segCount*2);  // segCountX2
+    put_u2(b + 8,  searchRange); // searchRange
+    put_u2(b + 10, entrySelector);  // entrySelector
+    put_u2(b + 12, rangeShift);  // rangeShift
+    b += 14;
+    for (size_t i = 0; i < segCount - 1; i++) {
+        const CmapSequentialMapGroup &group = font_->char2index_[i];
+        put_u2(b, (uint16_t)group.endCharCode);  // endCode[segCount-1]
+        b += 2;
+    }
+    put_u2(b + 0, 0xffff);       // final segment's endCode
+    b += 2;
+    put_u2(b + 0, 0);            // reservedPad
+    b += 2;
+    for (size_t i = 0; i < segCount - 1; i++) {
+        const CmapSequentialMapGroup &group = font_->char2index_[i];
+        put_u2(b, (uint16_t)group.startCharCode);  // startCode[segCount-1]
+        b += 2;
+    }
+    put_u2(b + 0, 0xffff);       // final segment's startCode
+    b += 2;
+    for (size_t i = 0; i < segCount - 1; i++) {
+        const CmapSequentialMapGroup &group = font_->char2index_[i];
+        uint16_t idDelta = (uint16_t)group.startGlyphID;
+        idDelta -= (uint16_t)group.startCharCode;
+        put_u2(b, idDelta);      // idDelta[segCount-1]
+        b += 2;
+    }
+    put_u2(b + 0, 1);            // final segment's idDelta
+    b += 2;
+    for (size_t i = 0; i < segCount; i++) {
+        put_u2(b, 0);            // idRangeOffset[segCount]
+        b += 2;
+    }
+
+    put_u2(b + 0,  12);           // format 12
+    put_u2(b + 2,  0);            // reserved
+    put_u4(b + 4,  format12Len);  // subtable length
+    put_u4(b + 8,  0);            // language
+    put_u4(b + 12, (uint32_t)font_->char2index_.size());   // numGroups
+    b += 16;
     for (size_t i = 0; i < font_->char2index_.size(); i++) {
         const CmapSequentialMapGroup &group = font_->char2index_[i];
-        uint8_t *b1 = b + 28 + i * 12;
-        put_u4(b1 + 0, group.startCharCode);
-        put_u4(b1 + 4, group.endCharCode);
-        put_u4(b1 + 8, group.startGlyphID);
+        put_u4(b + 0, group.startCharCode);
+        put_u4(b + 4, group.endCharCode);
+        put_u4(b + 8, group.startGlyphID);
+        b += 12;
     }
 
     uint8_t *t = &(buf_[12 + tableIndex * 16]);
     memcpy(t, "cmap", 4);
-    put_u4(t + 4,  __checksum(b, length));
+    put_u4(t + 4,  __checksum(bstart, length));
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
