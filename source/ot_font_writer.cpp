@@ -45,23 +45,26 @@ Status OpenType_Font_Writer::Write(const char *filename, const OpenType_Font *fo
     uint16_t numTables = 10;
     if ((status = __writeFileHeader(numTables)) != kOk)
         return status;
-    if ((status = __writeTableHead(0)) != kOk)
+    // The records in the array must be sorted in ascending order by tag.
+    if ((status = __writeTableOS2(0)) != kOk)
         return status;
-    if ((status = __writeTableMaxp(1)) != kOk)
+    if ((status = __writeTableCmap(1)) != kOk)
         return status;
-    if ((status = __writeTablePost(2)) != kOk)
+    if ((status = __writeTableGlyf(2)) != kOk)
         return status;
-    if ((status = __writeTableOS2(3)) != kOk)
+    if ((status = __writeTableHead(3)) != kOk)
         return status;
-    if ((status = __writeTableName(4)) != kOk)
+    if ((status = __writeTableHhea(4)) != kOk)
         return status;
-    if ((status = __writeTableGlyfLoca(5)) != kOk)
+    if ((status = __writeTableHmtx(5)) != kOk)
         return status;
-    if ((status = __writeTableHhea(7)) != kOk)
+    if ((status = __writeTableLoca(6)) != kOk)
         return status;
-    if ((status = __writeTableHmtx(8)) != kOk)
+    if ((status = __writeTableMaxp(7)) != kOk)
         return status;
-    if ((status = __writeTableCmap(9)) != kOk)
+    if ((status = __writeTableName(8)) != kOk)
+        return status;
+    if ((status = __writeTablePost(9)) != kOk)
         return status;
     __updateChecksumAdjustment(numTables);
 
@@ -370,7 +373,7 @@ Status OpenType_Font_Writer::__writeTableName(uint16_t tableIndex)
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableGlyf(uint16_t tableIndex)
 {
     Status status;
     size_t offset;
@@ -378,8 +381,8 @@ Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
     uint8_t *ploca, *t, *b;
 
     // The `loca` table is an array of n offsets where n is the number of glyphs in the font plus one
-    std::vector<uint32_t> loca;
-    loca.resize(font_->glyphs_.size() + 1);
+    loca_.clear();
+    loca_.resize(font_->glyphs_.size() + 1);
 
     // The offset of table `glyf`
     offset = buf_.size();
@@ -387,7 +390,7 @@ Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
     // Write the glyphs one by one
     length = 0;
     for (size_t i = 0; i < font_->glyphs_.size(); i++) {
-        ploca = (uint8_t*)&(loca[i]);
+        ploca = (uint8_t*)&(loca_[i]);
         put_u4(ploca, length);  // uint32 in big endian
 
         const OpenType_GlyphHeader *header = font_->glyphs_[i];
@@ -409,7 +412,7 @@ Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
         }
         length += glyphDataLen;
     }
-    ploca = (uint8_t*)&(loca[font_->glyphs_.size()]);
+    ploca = (uint8_t*)&(loca_[font_->glyphs_.size()]);
     put_u4(ploca, length);  // uint32 in big endian
 
     lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
@@ -420,19 +423,6 @@ Status OpenType_Font_Writer::__writeTableGlyfLoca(uint16_t tableIndex)
     t = &(buf_[12 + tableIndex * 16]);
     memcpy(t, "glyf", 4);
     put_u4(t + 4,  __checksum(b, lengthWithPadding));
-    put_u4(t + 8,  offset);
-    put_u4(t + 12, length);
-
-    // Finally, the `loca` table
-    offset = buf_.size();
-    length = loca.size() * 4;
-    buf_.resize(offset + length);
-    b = &(buf_[offset]);
-    memcpy(b, &loca[0], length);
-
-    t = &(buf_[12 + (tableIndex + 1) * 16]);
-    memcpy(t, "loca", 4);
-    put_u4(t + 4,  __checksum(b, length));
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
@@ -646,6 +636,27 @@ Status OpenType_Font_Writer::__writeGlyphComposite(const OpenType_GlyphComposite
         memcpy(b, &(composite->Instructions[0]), composite->Instructions.size());
         b += composite->Instructions.size();
     }
+
+    return kOk;
+}
+
+Status OpenType_Font_Writer::__writeTableLoca(uint16_t tableIndex)
+{
+    size_t offset;
+    uint32_t length;
+    uint8_t *b, *t;
+
+    offset = buf_.size();
+    length = loca_.size() * 4;
+    buf_.resize(offset + length);
+    b = &(buf_[offset]);
+    memcpy(b, &loca_[0], length);
+
+    t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "loca", 4);
+    put_u4(t + 4, __checksum(b, length));
+    put_u4(t + 8, offset);
+    put_u4(t + 12, length);
 
     return kOk;
 }

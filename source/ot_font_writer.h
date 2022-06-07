@@ -11,6 +11,7 @@ class OpenType_Font_Writer
     const OpenType_Font *font_;
     std::vector<uint8_t> buf_;
     size_t checksumAdjustmentOffset_;
+    std::vector<uint32_t> loca_;
 
 public:
     OpenType_Font_Writer();
@@ -26,9 +27,10 @@ private:
     Status __writeTablePost(uint16_t tableIndex);
     Status __writeTableOS2(uint16_t tableIndex);
     Status __writeTableName(uint16_t tableIndex);
-    Status __writeTableGlyfLoca(uint16_t tableIndex);
+    Status __writeTableGlyf(uint16_t tableIndex);
     Status __writeGlyphSimple(const OpenType_GlyphSimple *simple, uint32_t *glyphDataLen);
     Status __writeGlyphComposite(const OpenType_GlyphComposite *simple, uint32_t *glyphDataLen);
+    Status __writeTableLoca(uint16_t tableIndex);
     Status __writeTableHhea(uint16_t tableIndex);
     Status __writeTableHmtx(uint16_t tableIndex);
     Status __writeTableCmap(uint16_t tableIndex);
