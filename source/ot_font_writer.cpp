@@ -720,22 +720,12 @@ Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
 
 Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
 {
-    // number of segments in format 4 subtable
-    size_t segCount = 0;
-    while (segCount < font_->char2index_.size()) {
-        const CmapSequentialMapGroup &group = font_->char2index_[segCount];
-        if (group.startCharCode >= 0xffff) {
-            break;
-        }
-        segCount++;
-    }
-    segCount += 1;  // the terminate segment
-    if (segCount > 32767) {
-        segCount = 32767;
-    }
+    // Windows require a format4 subtable if a format12 subtable present.
+    // We wrote a dummy format4 subtable, which contains the terminate segment only.
+    uint16_t segCount = 1;
     uint16_t entrySelector = (uint16_t)(std::floor(std::log2(segCount)));
     uint16_t searchRange = (uint16_t)(std::exp2(entrySelector) * 2);
-    uint16_t rangeShift = segCount * 2 - searchRange;
+    uint16_t rangeShift = (uint16_t)(segCount * 2 - searchRange);
 
     uint32_t format4Len = 16 + 8 * segCount;
     uint32_t format12Len = 16 + (uint32_t)font_->char2index_.size() * 12;
@@ -758,43 +748,20 @@ Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
     put_u4(b + 16, 20 + format4Len);
     b += 20;
 
-    put_u2(b + 0,  4);           // format 4
-    put_u2(b + 2,  format4Len);  // subtable length
-    put_u2(b + 4,  0);           // language
-    put_u2(b + 6,  segCount*2);  // segCountX2
-    put_u2(b + 8,  searchRange); // searchRange
+    put_u2(b + 0,  4);            // format 4
+    put_u2(b + 2,  format4Len);   // subtable length
+    put_u2(b + 4,  0);            // language
+    put_u2(b + 6,  segCount*2);   // segCountX2
+    put_u2(b + 8,  searchRange);  // searchRange
     put_u2(b + 10, entrySelector);  // entrySelector
-    put_u2(b + 12, rangeShift);  // rangeShift
+    put_u2(b + 12, rangeShift);   // rangeShift
     b += 14;
-    for (size_t i = 0; i < segCount - 1; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        put_u2(b, (uint16_t)group.endCharCode);  // endCode[segCount-1]
-        b += 2;
-    }
-    put_u2(b + 0, 0xffff);       // final segment's endCode
-    b += 2;
-    put_u2(b + 0, 0);            // reservedPad
-    b += 2;
-    for (size_t i = 0; i < segCount - 1; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        put_u2(b, (uint16_t)group.startCharCode);  // startCode[segCount-1]
-        b += 2;
-    }
-    put_u2(b + 0, 0xffff);       // final segment's startCode
-    b += 2;
-    for (size_t i = 0; i < segCount - 1; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        uint16_t idDelta = (uint16_t)group.startGlyphID;
-        idDelta -= (uint16_t)group.startCharCode;
-        put_u2(b, idDelta);      // idDelta[segCount-1]
-        b += 2;
-    }
-    put_u2(b + 0, 1);            // final segment's idDelta
-    b += 2;
-    for (size_t i = 0; i < segCount; i++) {
-        put_u2(b, 0);            // idRangeOffset[segCount]
-        b += 2;
-    }
+    put_u2(b + 0, 0xffff);        // final segment's endCode
+    put_u2(b + 2, 0);             // reservedPad
+    put_u2(b + 4, 0xffff);        // final segment's startCode
+    put_u2(b + 6, 1);             // final segment's idDelta
+    put_u2(b + 8, 0);             // final segment's idRangeOffset
+    b += 10;
 
     put_u2(b + 0,  12);           // format 12
     put_u2(b + 2,  0);            // reserved
