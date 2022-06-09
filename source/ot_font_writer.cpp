@@ -43,28 +43,36 @@ Status OpenType_Font_Writer::Write(const char *filename, const OpenType_Font *fo
     }
 
     uint16_t numTables = 10;
+    numTables += __numOptionalTables();
     if ((status = __writeFileHeader(numTables)) != kOk)
         return status;
     // The records in the array must be sorted in ascending order by tag.
-    if ((status = __writeTableOS2(0)) != kOk)
+    uint16_t tableIndex = 0;
+    if ((status = __writeTableOS2(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableCmap(1)) != kOk)
+    if ((status = __writeTableCmap(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableGlyf(2)) != kOk)
+    if ((status = __writeTableCvt(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableHead(3)) != kOk)
+    if ((status = __writeTableFpgm(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableHhea(4)) != kOk)
+    if ((status = __writeTableGlyf(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableHmtx(5)) != kOk)
+    if ((status = __writeTableHead(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableLoca(6)) != kOk)
+    if ((status = __writeTableHhea(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableMaxp(7)) != kOk)
+    if ((status = __writeTableHmtx(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTableName(8)) != kOk)
+    if ((status = __writeTableLoca(tableIndex)) != kOk)
         return status;
-    if ((status = __writeTablePost(9)) != kOk)
+    if ((status = __writeTableMaxp(tableIndex)) != kOk)
+        return status;
+    if ((status = __writeTableName(tableIndex)) != kOk)
+        return status;
+    if ((status = __writeTablePost(tableIndex)) != kOk)
+        return status;
+    if ((status = __writeTablePrep(tableIndex)) != kOk)
         return status;
     __updateChecksumAdjustment(numTables);
 
@@ -110,7 +118,7 @@ uint32_t OpenType_Font_Writer::__checksum(const uint8_t *table, uint32_t length)
     return sum;
 }
 
-Status OpenType_Font_Writer::__writeTableHead(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableHead(uint16_t &tableIndex)
 {
     size_t offset = buf_.size();
     buf_.resize(offset + 56);  // 54 + 2
@@ -143,10 +151,11 @@ Status OpenType_Font_Writer::__writeTableHead(uint16_t tableIndex)
 
     checksumAdjustmentOffset_ = offset + 8;
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableMaxp(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableMaxp(uint16_t &tableIndex)
 {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/maxp
     // Fonts with TrueType outlines must use Version 1.0 of this table
@@ -178,10 +187,11 @@ Status OpenType_Font_Writer::__writeTableMaxp(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, 32);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTablePost(uint16_t &tableIndex)
 {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/post#version-20
     // - If the glyph name index is between 0 and 257 (inclusive), 
@@ -246,10 +256,11 @@ Status OpenType_Font_Writer::__writeTablePost(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableOS2(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableOS2(uint16_t &tableIndex)
 {
     size_t offset = buf_.size();
     buf_.resize(offset + 96);
@@ -300,10 +311,11 @@ Status OpenType_Font_Writer::__writeTableOS2(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, 96);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableName(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableName(uint16_t &tableIndex)
 {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/name
     // name records must be sorted first by platform ID, then by platform-specific ID, 
@@ -370,10 +382,11 @@ Status OpenType_Font_Writer::__writeTableName(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableGlyf(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableGlyf(uint16_t &tableIndex)
 {
     Status status;
     size_t offset;
@@ -426,6 +439,7 @@ Status OpenType_Font_Writer::__writeTableGlyf(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
     return kOk;
 }
 
@@ -640,7 +654,7 @@ Status OpenType_Font_Writer::__writeGlyphComposite(const OpenType_GlyphComposite
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableLoca(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableLoca(uint16_t &tableIndex)
 {
     size_t offset;
     uint32_t length;
@@ -658,10 +672,11 @@ Status OpenType_Font_Writer::__writeTableLoca(uint16_t tableIndex)
     put_u4(t + 8, offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableHhea(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableHhea(uint16_t &tableIndex)
 {
     size_t offset = buf_.size();
     buf_.resize(offset + 36);
@@ -693,10 +708,11 @@ Status OpenType_Font_Writer::__writeTableHhea(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, 36);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableHmtx(uint16_t &tableIndex)
 {
     size_t offset = buf_.size();
     uint32_t length = 4 * (uint32_t)font_->hmtx_.size();
@@ -715,10 +731,11 @@ Status OpenType_Font_Writer::__writeTableHmtx(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
     return kOk;
 }
 
-Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
+Status OpenType_Font_Writer::__writeTableCmap(uint16_t &tableIndex)
 {
     // Windows require a format4 subtable if a format12 subtable present.
     // We wrote a dummy format4 subtable, which contains the terminate segment only.
@@ -783,6 +800,7 @@ Status OpenType_Font_Writer::__writeTableCmap(uint16_t tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
     return kOk;
 }
 
@@ -802,4 +820,91 @@ void OpenType_Font_Writer::__updateChecksumAdjustment(uint16_t numTables)
 
     uint8_t* checksumAdjustment = &buf_[0] + checksumAdjustmentOffset_;
     put_u4(checksumAdjustment, 0xB1B0AFBAu - sum);
+}
+
+uint16_t OpenType_Font_Writer::__numOptionalTables()
+{
+    uint16_t n = 0;
+    if (font_->cvt_.size() > 0)
+        n++;
+    if (font_->fpgm_.size() > 0)
+        n++;
+    if (font_->prep_.size() > 0)
+        n++;
+    return n;
+}
+
+Status OpenType_Font_Writer::__writeTableCvt(uint16_t &tableIndex)
+{
+    if (font_->cvt_.size() == 0) {
+        return kOk;
+    }
+
+    size_t offset = buf_.size();
+    uint32_t length = (uint32_t)font_->cvt_.size();
+    uint32_t lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+    buf_.resize(offset + lengthWithPadding);
+
+    uint8_t *b = &(buf_[offset]);
+    const uint8_t *src = &(font_->cvt_[0]);
+    memcpy(b, src, length);
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "cvt ", 4);
+    put_u4(t + 4,  __checksum(b, lengthWithPadding));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
+    tableIndex++;
+    return kOk;
+}
+
+Status OpenType_Font_Writer::__writeTableFpgm(uint16_t &tableIndex)
+{
+    if (font_->fpgm_.size() == 0) {
+        return kOk;
+    }
+
+    size_t offset = buf_.size();
+    uint32_t length = (uint32_t)font_->fpgm_.size();
+    uint32_t lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+    buf_.resize(offset + lengthWithPadding);
+
+    uint8_t *b = &(buf_[offset]);
+    const uint8_t *src = &(font_->fpgm_[0]);
+    memcpy(b, src, length);
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "fpgm", 4);
+    put_u4(t + 4,  __checksum(b, lengthWithPadding));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
+    tableIndex++;
+    return kOk;
+}
+
+Status OpenType_Font_Writer::__writeTablePrep(uint16_t &tableIndex)
+{
+    if (font_->prep_.size() == 0) {
+        return kOk;
+    }
+
+    size_t offset = buf_.size();
+    uint32_t length = (uint32_t)font_->prep_.size();
+    uint32_t lengthWithPadding = ((length - 1) / 4 + 1) * 4;  // padding to 4-byte boundaries
+    buf_.resize(offset + lengthWithPadding);
+
+    uint8_t *b = &(buf_[offset]);
+    const uint8_t *src = &(font_->prep_[0]);
+    memcpy(b, src, length);
+
+    uint8_t *t = &(buf_[12 + tableIndex * 16]);
+    memcpy(t, "prep", 4);
+    put_u4(t + 4,  __checksum(b, lengthWithPadding));
+    put_u4(t + 8,  offset);
+    put_u4(t + 12, length);
+
+    tableIndex++;
+    return kOk;
 }

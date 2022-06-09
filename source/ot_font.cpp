@@ -101,6 +101,10 @@ void OpenType_Font::Clear()
     glyphNames_.clear();
     char2index_.clear();
     names_.clear();
+
+    cvt_.clear();
+    fpgm_.clear();
+    prep_.clear();
 }
 
 Status OpenType_Font::AddGlyph(

@@ -275,6 +275,9 @@ private:
     std::vector<std::string> glyphNames_;
     std::vector<CmapSequentialMapGroup> char2index_;
     std::multimap<uint16_t, OpenType_NameRecord> names_;
+    std::vector<uint8_t> cvt_;
+    std::vector<uint8_t> fpgm_;
+    std::vector<uint8_t> prep_;
 };
 
 //------------------------------------------------------------------------------

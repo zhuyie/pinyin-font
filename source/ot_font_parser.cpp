@@ -92,6 +92,12 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
             hmtx_ = t;
         } else if (memcmp(t.name, "cmap", 4) == 0) {
             cmap_ = t;
+        } else if (memcmp(t.name, "cvt ", 4) == 0) {
+            cvt_ = t;
+        } else if (memcmp(t.name, "fpgm", 4) == 0) {
+            fpgm_ = t;
+        } else if (memcmp(t.name, "prep", 4) == 0) {
+            prep_ = t;
         }
     }
     // CFF font not supported yet
@@ -114,6 +120,12 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
     if ((status = __parseHmtx()) != kOk)
         return status;
     if ((status = __parseCmap()) != kOk)
+        return status;
+    if ((status = __parseCvt()) != kOk)
+        return status;
+    if ((status = __parseFpgm()) != kOk)
+        return status;
+    if ((status = __parsePrep()) != kOk)
         return status;
 
     return kOk;
@@ -812,4 +824,40 @@ void OpenType_Font_Parser::__cmapParseCallback(void *userdata, CmapSequentialMap
 {
     OpenType_Font *font = (OpenType_Font*)userdata;
     font->char2index_.push_back(group);
+}
+
+Status OpenType_Font_Parser::__parseCvt()
+{
+    if (cvt_.length == 0) {
+        return kOk;
+    }
+    font_->cvt_.resize(cvt_.length);
+    uint8_t *dst = &(font_->cvt_[0]);
+    const uint8_t *src = data_ + cvt_.offset;
+    memcpy(dst, src, cvt_.length);
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseFpgm()
+{
+    if (fpgm_.length == 0) {
+        return kOk;
+    }
+    font_->fpgm_.resize(fpgm_.length);
+    uint8_t *dst = &(font_->fpgm_[0]);
+    const uint8_t *src = data_ + fpgm_.offset;
+    memcpy(dst, src, fpgm_.length);
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parsePrep()
+{
+    if (prep_.length == 0) {
+        return kOk;
+    }
+    font_->prep_.resize(prep_.length);
+    uint8_t *dst = &(font_->prep_[0]);
+    const uint8_t *src = data_ + prep_.offset;
+    memcpy(dst, src, prep_.length);
+    return kOk;
 }

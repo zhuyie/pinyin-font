@@ -33,6 +33,9 @@ class OpenType_Font_Parser
     table hhea_;
     table hmtx_;
     table cmap_;
+    table cvt_;
+    table fpgm_;
+    table prep_;
 
 public:
     OpenType_Font_Parser();
@@ -55,6 +58,9 @@ private:
     Status __parseCmap();
     Status __parseCmapSubtable(const uint8_t *start, const uint8_t *end, uint16_t platformId, uint16_t encodingId);
     static void __cmapParseCallback(void *userdata, CmapSequentialMapGroup group);
+    Status __parseCvt();
+    Status __parseFpgm();
+    Status __parsePrep();
 };
 
 //------------------------------------------------------------------------------

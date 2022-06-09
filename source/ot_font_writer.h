@@ -22,19 +22,23 @@ public:
 private:
     Status __writeFileHeader(uint16_t numTables);
     uint32_t __checksum(const uint8_t *table, uint32_t length);
-    Status __writeTableHead(uint16_t tableIndex);
-    Status __writeTableMaxp(uint16_t tableIndex);
-    Status __writeTablePost(uint16_t tableIndex);
-    Status __writeTableOS2(uint16_t tableIndex);
-    Status __writeTableName(uint16_t tableIndex);
-    Status __writeTableGlyf(uint16_t tableIndex);
+    Status __writeTableHead(uint16_t &tableIndex);
+    Status __writeTableMaxp(uint16_t &tableIndex);
+    Status __writeTablePost(uint16_t &tableIndex);
+    Status __writeTableOS2(uint16_t &tableIndex);
+    Status __writeTableName(uint16_t &tableIndex);
+    Status __writeTableGlyf(uint16_t &tableIndex);
     Status __writeGlyphSimple(const OpenType_GlyphSimple *simple, uint32_t *glyphDataLen);
     Status __writeGlyphComposite(const OpenType_GlyphComposite *simple, uint32_t *glyphDataLen);
-    Status __writeTableLoca(uint16_t tableIndex);
-    Status __writeTableHhea(uint16_t tableIndex);
-    Status __writeTableHmtx(uint16_t tableIndex);
-    Status __writeTableCmap(uint16_t tableIndex);
+    Status __writeTableLoca(uint16_t &tableIndex);
+    Status __writeTableHhea(uint16_t &tableIndex);
+    Status __writeTableHmtx(uint16_t &tableIndex);
+    Status __writeTableCmap(uint16_t &tableIndex);
     void __updateChecksumAdjustment(uint16_t numTables);
+    uint16_t __numOptionalTables();
+    Status __writeTableCvt(uint16_t &tableIndex);
+    Status __writeTableFpgm(uint16_t &tableIndex);
+    Status __writeTablePrep(uint16_t &tableIndex);
 };
 
 //------------------------------------------------------------------------------
