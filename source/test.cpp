@@ -313,7 +313,12 @@ static int rewriteFont(const char *filename)
     fprintf(stdout, "Parse succeeded\n");
 
     OpenType_Font_Writer writer;
-    std::string newfile = filename;  newfile += ".rewrite";
+    std::string newfile = filename;
+    if (newfile.length() > 4 && newfile[newfile.size() - 4] == '.') {
+        // remove file ext
+        newfile.resize(newfile.length() - 4);
+    }
+    newfile += ".rewrite.ttf";
     status = writer.Write(newfile.c_str(), &font);
     if (status != kOk) {
         fprintf(stderr, "Write failed, error=%d\n", status);
