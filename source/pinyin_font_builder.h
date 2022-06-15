@@ -74,6 +74,7 @@ private:
     bool __composeCluster(
         wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
     Status __updateCmap();
+    Status __keepCommonGlyphs();
 };
 
 //------------------------------------------------------------------------------

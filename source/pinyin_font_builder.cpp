@@ -49,6 +49,11 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
 
     __buildSubstitutions();
 
+    status = __keepCommonGlyphs();
+    if (status != kOk) {
+        return status;
+    }
+
     status = __addPinyinGlyphs(pinyinDB);
     if (status != kOk) {
         return status;
@@ -433,4 +438,40 @@ Status PinyinFontBuilder::__updateCmap()
     groups.push_back(group);
 
     return font_.SetCmap(groups);
+}
+
+Status PinyinFontBuilder::__keepCommonGlyphs()
+{
+    uint32_t charCode;
+    uint16_t glyphID;
+
+    // Basic Latin
+    for (charCode = 0x0001; charCode <= 0x007F; charCode++) {
+        glyphID = font_.CharToGlyphIndex(charCode);
+        if (glyphID != 0) {
+            char2index_[charCode] = glyphID;
+        }
+    }
+    // Latin-1 Supplement
+    for (charCode = 0x0080; charCode <= 0x00FF; charCode++) {
+        glyphID = font_.CharToGlyphIndex(charCode);
+        if (glyphID != 0) {
+            char2index_[charCode] = glyphID;
+        }
+    }
+    // CJK Symbols and Punctuation
+    for (charCode = 0x3000; charCode <= 0x303F; charCode++) {
+        glyphID = font_.CharToGlyphIndex(charCode);
+        if (glyphID != 0) {
+            char2index_[charCode] = glyphID;
+        }
+    }
+    // Euro Sign
+    charCode = 0x20AC;
+    glyphID = font_.CharToGlyphIndex(charCode);
+    if (glyphID != 0) {
+        char2index_[charCode] = glyphID;
+    }
+
+    return kOk;
 }
