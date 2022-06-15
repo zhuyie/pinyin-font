@@ -245,7 +245,9 @@ Status OpenType_Font_Parser::__parsePost()
     if (post.Version == 0x00010000) {
         // Use the Macintosh glyph name
         for (size_t i = 0; i < font_->glyphNames_.size() && i < 258; i++) {
-            font_->glyphNames_[i] = GetMacGlyphName(i);
+            OpenType_GlyphName entry;
+            entry.ID = (uint32_t)i;
+            font_->glyphNames_[i] = entry;
         }
         return kOk;
     }
@@ -282,14 +284,19 @@ Status OpenType_Font_Parser::__parsePost()
             uint16_t index = glyphNameIndex[i];
             if (index <= 257) {
                 // Use the Macintosh glyph name
-                font_->glyphNames_[i] = GetMacGlyphName(index);
+                OpenType_GlyphName entry;
+                entry.ID = (uint32_t)index;
+                font_->glyphNames_[i] = entry;
             } else {
                 // Subtract 258 and use that to index into the list of Pascal strings
                 index -= 258;
                 if (index < stringData.size()) {
                     const uint8_t *p = stringData[index];
                     uint8_t len = *p;
-                    font_->glyphNames_[i].assign((const char*)(p + 1), (const char*)(p + 1 + len));
+                    OpenType_GlyphName entry;
+                    entry.ID = 258;
+                    entry.Str.assign((const char*)(p + 1), (const char*)(p + 1 + len));
+                    font_->glyphNames_[i] = entry;
                 }
             }
         }

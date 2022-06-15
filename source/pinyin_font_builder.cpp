@@ -256,8 +256,11 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
 
     __addSubGlyph(glyph, baseGlyphIndex, baseRatio_, baseDX, baseDY_, true);
 
-    char name[20] = { 0 };
-    sprintf(name, "uni%04X_py00", (unsigned int)charcode);
+    char nameBuf[20] = { 0 };
+    sprintf(nameBuf, "uni%04X_py00", (unsigned int)charcode);
+    OpenType_GlyphName name;
+    name.ID = 258;
+    name.Str = nameBuf;
 
     uint16_t glyphIndex;
     Status status = font_.AddGlyph(&glyph, &baseHmtx, name, glyphIndex);

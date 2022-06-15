@@ -1,4 +1,5 @@
 #include "ot_font.h"
+#include "mac_glyph_names.h"
 #include <cassert>
 
 //------------------------------------------------------------------------------
@@ -35,7 +36,12 @@ Status OpenType_Font::GlyphName(int index, std::string &name) const
 {
     if (index < 0 || index >= (int)glyphNames_.size())
         return kInvalidArgs;
-    name = glyphNames_[index];
+    auto entry = glyphNames_[index];
+    if (entry.ID < 258) {
+        name = GetMacGlyphName(entry.ID);
+    } else {
+        name = entry.Str;
+    }
     return kOk;
 }
 
@@ -110,7 +116,7 @@ void OpenType_Font::Clear()
 Status OpenType_Font::AddGlyph(
     const OpenType_GlyphHeader *glyph, 
     const OpenType_LongHorMetric *mtx, 
-    const std::string &name,
+    const OpenType_GlyphName &name,
     uint16_t &glyphIndex)
 {
     assert(glyph);

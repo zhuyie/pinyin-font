@@ -228,6 +228,11 @@ typedef struct OpenType_NameRecord {
     std::wstring String;           // The string data.
 } OpenType_NameRecord;
 
+typedef struct OpenType_GlyphName {
+    uint32_t ID;                   // Macintosh standard glyph name when ID is between 0 and 257 (inclusive)
+    std::string Str;               // Valid when ID >= 258
+} OpenType_GlyphName;
+
 #pragma pack(pop)
 //------------------------------------------------------------------------------
 
@@ -259,7 +264,7 @@ public:
     Status AddGlyph(
         const OpenType_GlyphHeader *glyph, 
         const OpenType_LongHorMetric *mtx, 
-        const std::string &name, 
+        const OpenType_GlyphName &name, 
         uint16_t &glyphIndex);
     Status SetCmap(
         const std::vector<CmapSequentialMapGroup> &groups);
@@ -272,7 +277,7 @@ private:
     OpenType_Hhea hhea_;
     std::vector<OpenType_LongHorMetric> hmtx_;
     std::vector<OpenType_GlyphHeader*> glyphs_;
-    std::vector<std::string> glyphNames_;
+    std::vector<OpenType_GlyphName> glyphNames_;
     std::vector<CmapSequentialMapGroup> char2index_;
     std::multimap<uint16_t, OpenType_NameRecord> names_;
     std::vector<uint8_t> cvt_;

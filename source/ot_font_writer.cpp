@@ -224,11 +224,13 @@ Status OpenType_Font_Writer::__writeTablePost(uint16_t &tableIndex)
     // glyphNameIndex[numGlyphs]
     uint16_t nameIndex = 258;
     for (size_t i = 0; i < font_->glyphNames_.size(); i++) {
-        const std::string &str = font_->glyphNames_[i];
-        if (str.length() > 0 && nameIndex < 65535) {
+        const OpenType_GlyphName &entry = font_->glyphNames_[i];
+        if (entry.ID < 258) {
+            put_u2(b + i * 2, (uint16_t)entry.ID);
+        } else if (entry.Str.length() > 0 && nameIndex < 65535) {
             put_u2(b + i * 2, nameIndex);
             nameIndex++;
-            length += 1 + (uint8_t)str.length();
+            length += 1 + (uint8_t)entry.Str.length();
         } else {
             put_u2(b + i * 2, 0);
         }
@@ -239,15 +241,19 @@ Status OpenType_Font_Writer::__writeTablePost(uint16_t &tableIndex)
     b = &(buf_[offset + 32 + 2 + font_->glyphNames_.size() * 2]);
     nameIndex = 258;
     for (size_t i = 0; i < font_->glyphNames_.size(); i++) {
-        const std::string &str = font_->glyphNames_[i];
-        if (str.length() == 0 || nameIndex == 65535) {
+        const OpenType_GlyphName &entry = font_->glyphNames_[i];
+        if (entry.ID < 258 || entry.Str.length() == 0) {
             continue;
         }
-        uint8_t len = (uint8_t)str.length();
+        uint8_t len = (uint8_t)entry.Str.length();
         b[0] = len;
-        memcpy(b + 1, str.c_str(), len);
+        memcpy(b + 1, entry.Str.c_str(), len);
         b += 1 + len;
-        nameIndex++;
+        if (nameIndex < 65535) {
+            nameIndex++;
+        } else {
+            break;
+        }
     }
 
     uint8_t *t = &(buf_[12 + tableIndex * 16]);
