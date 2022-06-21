@@ -40,7 +40,10 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
     pinyinMarkVSpace_ = (int16_t)(pinyinCharSpace_ * 0.33);
     pinyinCharYMin_ = __calcPinyinCharYMin();
 
-    baseDY_ = (int16_t)(font_.Head().YMin * pinyinRatio_ * 0.5);
+    baseDY_ = 0;
+    if (font_.Head().YMin < 0) {
+        baseDY_ = (int16_t)(font_.Head().YMin * (1.0 - baseRatio_));
+    }
     pinyinDY_ = baseDY_ + (int16_t)(font_.Head().YMax * baseRatio_) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio_);
 
     if (!__checkRequiredGlyphs()) {
