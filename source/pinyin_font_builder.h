@@ -15,7 +15,14 @@ class PinyinDB;
 class PinyinFontBuilder
 {
     typedef struct {
+        int16_t XMin;
+        int16_t YMin;
+        int16_t XMax;
+        int16_t YMax;
+    } boundingBox;
+    typedef struct {
         uint16_t GlyphIndex;
+        boundingBox BBox;
         int16_t OffsetX;
         int16_t OffsetY;
         int16_t AdvanceWidth;
@@ -68,7 +75,7 @@ private:
     Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin);
     void __addSubGlyph(
         OpenType_GlyphComposite &glyph, 
-        uint16_t glyphIndex, double scale, int16_t dx, int16_t dy, bool isLastOne);
+        uint16_t glyphIndex, const boundingBox &bbox, double scale, int16_t dx, int16_t dy, bool isLastOne);
     bool __composePinyin(
         const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth);
     bool __composeCluster(
