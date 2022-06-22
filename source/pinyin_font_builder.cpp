@@ -239,7 +239,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     baseBBox.YMax = baseGlyph->YMax;
 
     int16_t baseDX = (int16_t)(baseHmtx.AdvanceWidth * (1.0 - baseRatio_) / 2);
-    int16_t centerX = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
+    int16_t hCenter = (int16_t)(baseGlyph->XMin + (baseGlyph->XMax - baseGlyph->XMin) / 2);
 
     OpenType_GlyphComposite &glyph = glyph_;
     glyph.NumberOfContours = -1;
@@ -257,7 +257,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     }
     for (size_t i = 0; i < pinyinGlyphs.size(); i++) {
         glyphInfo info = pinyinGlyphs[i];
-        uint16_t pinyinDX = centerX - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio_);
+        uint16_t pinyinDX = hCenter - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio_);
         __addSubGlyph(glyph, info.GlyphIndex, info.BBox, pinyinRatio_, 
             pinyinDX, (int16_t)(pinyinDY_ + info.OffsetY * pinyinRatio_), false);
     }
@@ -378,7 +378,7 @@ bool PinyinFontBuilder::__composeCluster(
     }
 
     glyphInfo info;
-    int16_t centerX, DY;
+    int16_t hCenter, DY;
     const OpenType_GlyphHeader *pGlyph = NULL;
     OpenType_LongHorMetric mtx = { 0 };
 
@@ -398,7 +398,7 @@ bool PinyinFontBuilder::__composeCluster(
     info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + pinyinCharSpace_;
     glyphs.push_back(info);
 
-    centerX = (int16_t)(x + pinyinCharSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
+    hCenter = (int16_t)(x + pinyinCharSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
     DY = pGlyph->YMax + pinyinMarkVSpace_;
 
     x += info.AdvanceWidth;
@@ -421,7 +421,7 @@ bool PinyinFontBuilder::__composeCluster(
         info.BBox.YMin = pGlyph->YMin;
         info.BBox.XMax = pGlyph->XMax;
         info.BBox.YMax = pGlyph->YMax;
-        info.OffsetX = centerX - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
+        info.OffsetX = hCenter - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
         info.OffsetY = DY - pGlyph->YMin;
         info.AdvanceWidth = pGlyph->XMax - pGlyph->XMin;
         glyphs.push_back(info);
@@ -445,7 +445,7 @@ bool PinyinFontBuilder::__composeCluster(
         info.BBox.YMin = pGlyph->YMin;
         info.BBox.XMax = pGlyph->XMax;
         info.BBox.YMax = pGlyph->YMax;
-        info.OffsetX = centerX - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
+        info.OffsetX = hCenter - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
         info.OffsetY = DY - pGlyph->YMin;
         info.AdvanceWidth = pGlyph->XMax - pGlyph->XMin;
         glyphs.push_back(info);
