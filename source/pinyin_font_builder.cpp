@@ -52,7 +52,7 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
 
     __buildSubstitutions();
 
-    status = __keepCommonGlyphs();
+    status = __retainCommonGlyphs();
     if (status != kOk) {
         return status;
     }
@@ -480,7 +480,7 @@ Status PinyinFontBuilder::__updateCmap()
     return font_.SetCmap(groups);
 }
 
-Status PinyinFontBuilder::__keepCommonGlyphs()
+Status PinyinFontBuilder::__retainCommonGlyphs()
 {
     uint32_t charCode;
     uint16_t glyphID;
