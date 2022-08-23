@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <set>
 #include <functional>
 #include <chrono>
 using namespace std::chrono;
@@ -93,15 +94,15 @@ static void dumpName(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void dumpPost(const OpenType_Font &font)
+static void dumpPost(const OpenType_Font &font, const std::set<int> &indices)
 {
     fprintf(stdout, "Post:\n");
     fprintf(stdout, "  Version = 0x%08x\n", font.Post().Version);
     fprintf(stdout, "  IsFixedPitch = %u\n", (unsigned int)font.Post().IsFixedPitch);
     
     std::string name;
-    for (int i = 0; i < 10; i++) {
-        int index = std::rand() % font.GlyphCount();
+    for (auto iter = indices.begin(); iter != indices.end(); ++iter) {
+        int index = *iter;
         font.GlyphName(index, name);
         fprintf(stdout, "  GlyphName_%d = %s\n", index, name.c_str());
     }
@@ -109,12 +110,12 @@ static void dumpPost(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void dumpGlyph(const OpenType_Font &font)
+static void dumpGlyph(const OpenType_Font &font, const std::set<int> &indices)
 {
     fprintf(stdout, "Glyph:\n");
     fprintf(stdout, "  Count = %d\n", font.GlyphCount());
-    for (int i = 0; i < 10; i++) {
-        int index = std::rand() % font.GlyphCount();
+    for (auto iter = indices.begin(); iter != indices.end(); ++iter) {
+        int index = *iter;
         const OpenType_GlyphHeader *pHeader = NULL;
         font.Glyph(index, &pHeader);
         if (pHeader == NULL) {
@@ -135,7 +136,7 @@ static void dumpGlyph(const OpenType_Font &font)
     fprintf(stdout, "\n");
 }
 
-static void dumpHmtx(const OpenType_Font &font)
+static void dumpHmtx(const OpenType_Font &font, const std::set<int> &indices)
 {
     fprintf(stdout, "Hhea+Hmtx:\n");
     fprintf(stdout, "  Ascender = %d\n", (int)font.Hhea().Ascender);
@@ -146,8 +147,8 @@ static void dumpHmtx(const OpenType_Font &font)
     fprintf(stdout, "  MinRightSideBearing = %d\n", (int)font.Hhea().MinRightSideBearing);
     fprintf(stdout, "  XMaxExtent = %d\n", (int)font.Hhea().XMaxExtent);
     fprintf(stdout, "  NumberOfHMetrics = %d\n", (int)font.Hhea().NumberOfHMetrics);
-    for (int i = 0; i < 10; i++) {
-        int index = std::rand() % font.GlyphCount();
+    for (auto iter = indices.begin(); iter != indices.end(); ++iter) {
+        int index = *iter;
         OpenType_LongHorMetric mtx;
         font.GlyphHorMetric(index, mtx);
         fprintf(stdout, "  Glyph_%d = { Advance=%d, LSB=%d }\n", 
@@ -178,11 +179,20 @@ static int dumpFont(const char *filename)
     fprintf(stdout, "Parse succeeded\n");
     fprintf(stdout, "\n");
 
+    int maxItems = font.GlyphCount();
+    if (maxItems > 16) {
+        maxItems = 16;
+    }
+    std::set<int> indices;
+    while (indices.size() < maxItems) {
+        indices.insert(rand() % font.GlyphCount());
+    }
+
     dumpBasicInfo(font);
     dumpName(font);
-    dumpPost(font);
-    dumpGlyph(font);
-    dumpHmtx(font);
+    dumpPost(font, indices);
+    dumpGlyph(font, indices);
+    dumpHmtx(font, indices);
     dumpCmap(font);
 
     fprintf(stdout, "\n");
