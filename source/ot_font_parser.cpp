@@ -768,17 +768,20 @@ Status OpenType_Font_Parser::__parseCmap()
             return kCorruption;
         }
         int priority = 0;
-        if (platformId == 0 && encodingId == 3) {  // Platform=Unicode, Encoding=Unicode_BMP
+        if (platformId == 3 && encodingId == 0) {  // Platform=Windows, Encoding=Symbol
             priority = 1;
         }
-        if (platformId == 3 && encodingId == 1) {  // Platform=Windows, Encoding=Unicode_BMP
+        if (platformId == 0 && encodingId == 3) {  // Platform=Unicode, Encoding=Unicode_BMP
             priority = 2;
         }
-        if (platformId == 0 && encodingId == 4) {  // Platform=Unicode, Encoding=Unicode_Full
+        if (platformId == 3 && encodingId == 1) {  // Platform=Windows, Encoding=Unicode_BMP
             priority = 3;
         }
-        if (platformId == 3 && encodingId == 10) { // Platform=Windows, Encoding=Unicode_Full
+        if (platformId == 0 && encodingId == 4) {  // Platform=Unicode, Encoding=Unicode_Full
             priority = 4;
+        }
+        if (platformId == 3 && encodingId == 10) { // Platform=Windows, Encoding=Unicode_Full
+            priority = 5;
         }
         if (priority > bestPriority) {
             bestPriority = priority;
