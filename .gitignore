@@ -1,0 +1,21 @@
+# Build outputs
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Generated font and table artifacts
+*.pinyin.ttf
+*.rewrite.ttf
+*.purged.ttf
+*.dat
+
+# Local editor and tool state
+.vscode/
+.cache/
+.codex/
+
+# OS metadata
+.DS_Store

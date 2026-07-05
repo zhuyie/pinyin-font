@@ -342,9 +342,8 @@ static int rewriteFont(const char *filename)
 
 //------------------------------------------------------------------------------
 
-static int buildFont(const char *filename)
+static int buildFont(const char *filename, const char *dbFile)
 {
-    const char *dbFile = "data/TGHZ2013.txt";
     PinyinDB db;
     fprintf(stdout, "DBFile = %s\n", dbFile);
     Status status = db.Load(dbFile);
@@ -386,7 +385,9 @@ static int buildFont(const char *filename)
 int main(int argc, char* argv[])
 {
     if (argc < 3) {
-        fprintf(stdout, "usage: %s mode path\n", argv[0]);
+        fprintf(stdout, "usage: %s mode path [pinyin-db]\n", argv[0]);
+        fprintf(stdout, "       mode: dump, bench, rewrite, build\n");
+        fprintf(stdout, "  pinyin-db: optional for build mode, defaults to data/TGHZ2013.txt\n");
         return 1;
     }
     const char *mode = argv[1];
@@ -404,7 +405,8 @@ int main(int argc, char* argv[])
     } else if (strcmp(mode, "rewrite") == 0) {
         return rewriteFont(path);
     } else if (strcmp(mode, "build") == 0) {
-        return buildFont(path);
+        const char *dbFile = (argc > 3) ? argv[3] : "data/TGHZ2013.txt";
+        return buildFont(path, dbFile);
     } else {
         fprintf(stdout, "unknown mode\n");
         return 1;
