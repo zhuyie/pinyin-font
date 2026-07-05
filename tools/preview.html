@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinyin Font Preview</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f7f8fa;
+            --panel: #ffffff;
+            --panel-soft: #f2f5f8;
+            --text: #18212f;
+            --muted: #627084;
+            --line: #d9e0e8;
+            --accent: #1f7a68;
+            --accent-soft: #dff3ee;
+            --warn: #a15c12;
+            --warn-soft: #fff1d8;
+            --fail: #b42318;
+            --fail-soft: #fde7e5;
+            --shadow: 0 16px 36px rgba(24, 33, 47, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+            line-height: 1.5;
+        }
+
+        main {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 40px;
+        }
+
+        header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 22px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 720;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 320px minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 16px;
+            padding: 18px;
+        }
+
+        .content {
+            display: grid;
+            gap: 18px;
+        }
+
+        .section {
+            padding: 20px;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 17px;
+            font-weight: 680;
+            letter-spacing: 0;
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+
+        .field:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            min-height: 38px;
+            color: var(--text);
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font: inherit;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+
+        .status-list {
+            display: grid;
+            gap: 10px;
+            margin: 16px 0 0;
+        }
+
+        .status {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            min-height: 38px;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel-soft);
+        }
+
+        .status-name {
+            overflow: hidden;
+            color: var(--text);
+            font-size: 13px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .badge {
+            flex: 0 0 auto;
+            min-width: 72px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .badge.missing {
+            color: var(--warn);
+            background: var(--warn-soft);
+        }
+
+        .badge.loaded {
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .badge.failed {
+            color: var(--fail);
+            background: var(--fail-soft);
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) 220px;
+            gap: 18px;
+            align-items: end;
+        }
+
+        .size-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .size-value {
+            flex: 0 0 48px;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 14px;
+        }
+
+        .preview-grid.compare {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .preview-box {
+            min-width: 0;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--panel);
+        }
+
+        .preview-heading {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel-soft);
+        }
+
+        .preview-heading strong {
+            font-size: 13px;
+        }
+
+        .file-label {
+            overflow: hidden;
+            color: var(--muted);
+            font-size: 12px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sample-area {
+            min-height: 170px;
+            padding: 18px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            line-height: 1.25;
+        }
+
+        .pinyin-font {
+            font-family: "PreviewPinyinFont", "Noto Sans SC", sans-serif;
+        }
+
+        .original-font {
+            font-family: "PreviewOriginalFont", "Noto Sans SC", sans-serif;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .glyph-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+            gap: 12px;
+        }
+
+        .glyph-card {
+            min-height: 146px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            text-align: center;
+        }
+
+        .glyph-main {
+            min-height: 82px;
+            font-size: 64px;
+            line-height: 1.1;
+        }
+
+        .glyph-original {
+            color: var(--muted);
+            font-size: 28px;
+            line-height: 1.2;
+        }
+
+        .glyph-name {
+            color: var(--muted);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .text-columns {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 14px;
+        }
+
+        .text-columns.compare {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .text-sample {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            overflow: hidden;
+        }
+
+        .text-sample .sample-area {
+            min-height: 260px;
+            font-size: 28px;
+            line-height: 1.8;
+        }
+
+        .empty-note {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        @media (max-width: 860px) {
+            main {
+                width: min(100% - 20px, 720px);
+                padding-top: 18px;
+            }
+
+            header,
+            .workspace,
+            .controls,
+            .preview-grid.compare,
+            .text-columns.compare {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                display: grid;
+                align-items: start;
+            }
+
+            .sidebar {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>Pinyin Font Preview</h1>
+            <p class="subtitle">浏览器本地加载字体文件，用于检查生成字体的加载与显示效果。</p>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <aside class="panel sidebar">
+            <h2>字体文件</h2>
+            <div class="field">
+                <label for="pinyinFontInput">拼音字体</label>
+                <input id="pinyinFontInput" type="file" accept=".ttf,.otf,font/ttf,font/otf">
+            </div>
+            <div class="field">
+                <label for="originalFontInput">原始字体</label>
+                <input id="originalFontInput" type="file" accept=".ttf,.otf,font/ttf,font/otf">
+            </div>
+            <div class="status-list" aria-live="polite">
+                <div class="status">
+                    <span class="status-name" id="pinyinFileName">未选择拼音字体</span>
+                    <span class="badge missing" id="pinyinStatus">missing</span>
+                </div>
+                <div class="status">
+                    <span class="status-name" id="originalFileName">未选择原始字体</span>
+                    <span class="badge missing" id="originalStatus">optional</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="content">
+            <section class="panel section">
+                <h2>主预览</h2>
+                <div class="controls">
+                    <div class="field">
+                        <label for="sampleText">预览文本</label>
+                        <input id="sampleText" type="text" value="汉语拼音测试，窗外春风吹过绿色田野。">
+                    </div>
+                    <div class="field">
+                        <label for="sizeRange">字号</label>
+                        <div class="size-row">
+                            <input id="sizeRange" type="range" min="24" max="150" value="72">
+                            <span class="size-value" id="sizeValue">72px</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="preview-grid" id="mainPreviewGrid">
+                    <div class="preview-box">
+                        <div class="preview-heading">
+                            <strong>拼音字体</strong>
+                            <span class="file-label" id="pinyinPreviewName">等待选择</span>
+                        </div>
+                        <div class="sample-area pinyin-font" id="pinyinPreview" style="font-size: 72px;">
+                            汉语拼音测试，窗外春风吹过绿色田野。
+                        </div>
+                    </div>
+                    <div class="preview-box hidden" id="originalPreviewBox">
+                        <div class="preview-heading">
+                            <strong>原始字体</strong>
+                            <span class="file-label" id="originalPreviewName">等待选择</span>
+                        </div>
+                        <div class="sample-area original-font" id="originalPreview" style="font-size: 72px;">
+                            汉语拼音测试，窗外春风吹过绿色田野。
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel section">
+                <h2>单字检查</h2>
+                <div class="glyph-grid" id="glyphGrid">
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">庄</div>
+                        <div class="glyph-original original-font">庄</div>
+                        <div class="glyph-name">zhuang</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">爽</div>
+                        <div class="glyph-original original-font">爽</div>
+                        <div class="glyph-name">shuang</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">窗</div>
+                        <div class="glyph-original original-font">窗</div>
+                        <div class="glyph-name">chuang</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">强</div>
+                        <div class="glyph-original original-font">强</div>
+                        <div class="glyph-name">qiang</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">中</div>
+                        <div class="glyph-original original-font">中</div>
+                        <div class="glyph-name">zhong</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">绿</div>
+                        <div class="glyph-original original-font">绿</div>
+                        <div class="glyph-name">lu</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel section">
+                <h2>连续文本</h2>
+                <div class="text-columns" id="textColumns">
+                    <div class="text-sample">
+                        <div class="preview-heading">
+                            <strong>拼音字体</strong>
+                            <span class="file-label" id="pinyinTextName">等待选择</span>
+                        </div>
+                        <div class="sample-area pinyin-font">
+                            <p>白日依山尽，黄河入海流。欲穷千里目，更上一层楼。</p>
+                            <p>春天来了，村里的庄稼长得很茂盛，大家感觉非常清爽。我们走在乡间的小路上，呼吸着新鲜的空气，看着绿油油的田野。</p>
+                            <p>测试长拼音在句子中的平衡感：窗户外面是一片绿色的海洋，强风吹过，庄稼随风摇曳。</p>
+                        </div>
+                    </div>
+                    <div class="text-sample hidden" id="originalTextBox">
+                        <div class="preview-heading">
+                            <strong>原始字体</strong>
+                            <span class="file-label" id="originalTextName">等待选择</span>
+                        </div>
+                        <div class="sample-area original-font">
+                            <p>白日依山尽，黄河入海流。欲穷千里目，更上一层楼。</p>
+                            <p>春天来了，村里的庄稼长得很茂盛，大家感觉非常清爽。我们走在乡间的小路上，呼吸着新鲜的空气，看着绿油油的田野。</p>
+                            <p>测试长拼音在句子中的平衡感：窗户外面是一片绿色的海洋，强风吹过，庄稼随风摇曳。</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<script>
+    const state = {
+        pinyin: { family: 'PreviewPinyinFont', url: null, face: null, loaded: false },
+        original: { family: 'PreviewOriginalFont', url: null, face: null, loaded: false }
+    };
+
+    const sampleText = document.getElementById('sampleText');
+    const sizeRange = document.getElementById('sizeRange');
+    const sizeValue = document.getElementById('sizeValue');
+    const pinyinPreview = document.getElementById('pinyinPreview');
+    const originalPreview = document.getElementById('originalPreview');
+    const mainPreviewGrid = document.getElementById('mainPreviewGrid');
+    const originalPreviewBox = document.getElementById('originalPreviewBox');
+    const textColumns = document.getElementById('textColumns');
+    const originalTextBox = document.getElementById('originalTextBox');
+
+    function setStatus(kind, status, fileName) {
+        const statusEl = document.getElementById(kind + 'Status');
+        const fileEl = document.getElementById(kind + 'FileName');
+        statusEl.className = 'badge ' + status;
+        statusEl.textContent = status === 'loaded' ? 'loaded' : status === 'failed' ? 'failed' : (kind === 'original' ? 'optional' : 'missing');
+        fileEl.textContent = fileName || (kind === 'original' ? '未选择原始字体' : '未选择拼音字体');
+    }
+
+    function setPreviewNames(kind, fileName) {
+        const fallback = fileName || '等待选择';
+        const ids = kind === 'pinyin'
+            ? ['pinyinPreviewName', 'pinyinTextName']
+            : ['originalPreviewName', 'originalTextName'];
+        ids.forEach((id) => {
+            document.getElementById(id).textContent = fallback;
+        });
+    }
+
+    function resetFont(kind) {
+        const item = state[kind];
+        if (item.face) {
+            document.fonts.delete(item.face);
+            item.face = null;
+        }
+        if (item.url) {
+            URL.revokeObjectURL(item.url);
+            item.url = null;
+        }
+        item.loaded = false;
+    }
+
+    function updateComparisonVisibility() {
+        const compare = state.original.loaded;
+        originalPreviewBox.classList.toggle('hidden', !compare);
+        originalTextBox.classList.toggle('hidden', !compare);
+        mainPreviewGrid.classList.toggle('compare', compare);
+        textColumns.classList.toggle('compare', compare);
+    }
+
+    async function loadFont(kind, file) {
+        resetFont(kind);
+
+        if (!file) {
+            setStatus(kind, 'missing');
+            setPreviewNames(kind, null);
+            updateComparisonVisibility();
+            return;
+        }
+
+        const item = state[kind];
+        item.url = URL.createObjectURL(file);
+        item.face = new FontFace(item.family, `url("${item.url}")`);
+        setStatus(kind, 'missing', file.name);
+        setPreviewNames(kind, file.name);
+
+        try {
+            await item.face.load();
+            document.fonts.add(item.face);
+            item.loaded = true;
+            setStatus(kind, 'loaded', file.name);
+        } catch (error) {
+            resetFont(kind);
+            setStatus(kind, 'failed', file.name);
+        }
+
+        updateComparisonVisibility();
+    }
+
+    function updateSampleText() {
+        const text = sampleText.value || '汉语拼音测试';
+        pinyinPreview.textContent = text;
+        originalPreview.textContent = text;
+    }
+
+    function updateSize() {
+        const size = sizeRange.value + 'px';
+        sizeValue.textContent = size;
+        pinyinPreview.style.fontSize = size;
+        originalPreview.style.fontSize = size;
+    }
+
+    document.getElementById('pinyinFontInput').addEventListener('change', (event) => {
+        loadFont('pinyin', event.target.files[0]);
+    });
+
+    document.getElementById('originalFontInput').addEventListener('change', (event) => {
+        loadFont('original', event.target.files[0]);
+    });
+
+    sampleText.addEventListener('input', updateSampleText);
+    sizeRange.addEventListener('input', updateSize);
+
+    window.addEventListener('beforeunload', () => {
+        resetFont('pinyin');
+        resetFont('original');
+    });
+</script>
+</body>
+</html>

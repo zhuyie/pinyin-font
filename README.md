@@ -52,3 +52,7 @@ build/font_tool rewrite --input <font.ttf> [--output <out.ttf>]
 build/font_tool table-dump --input <font.ttf> --table <tag> [--output <file.dat>]
 build/font_tool table-purge --input <font.ttf> --table <tag> [--output <out.ttf>]
 ```
+
+Visual validation lives in the standalone browser page `tools/preview.html`.
+Open it directly, select the generated pinyin font, and optionally select the
+original font for side-by-side comparison.
