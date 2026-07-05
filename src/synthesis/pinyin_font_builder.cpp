@@ -23,6 +23,13 @@ PinyinFontBuilder::~PinyinFontBuilder()
 
 Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB)
 {
+    std::string outFile = sourceFont;
+    outFile += ".pinyin.ttf";
+    return Build(sourceFont, outFile.c_str(), pinyinDB);
+}
+
+Status PinyinFontBuilder::Build(const char *sourceFont, const char *outputFont, const PinyinDB &pinyinDB)
+{
     Status status;
     auto start = system_clock::now();
     
@@ -69,10 +76,8 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const PinyinDB &pinyinDB
 
     auto synthesisDone = system_clock::now();
 
-    std::string outFile = sourceFont;
-    outFile += ".pinyin.ttf";
     OpenType_Font_Writer writer;
-    status = writer.Write(outFile.c_str(), &font_);
+    status = writer.Write(outputFont, &font_);
     if (status != kOk) {
         return status;
     }

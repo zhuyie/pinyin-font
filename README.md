@@ -21,7 +21,7 @@ cmake -S . -B build
 cmake --build build
 ```
 
-The main executable is `build/pinyinfont`.
+The main executable is `build/pinyinfont`. Development font diagnostics build as `build/font_tool`.
 
 ## Test
 
@@ -32,21 +32,23 @@ ctest --test-dir build --output-on-failure
 ## CLI
 
 ```sh
-build/pinyinfont build <font.ttf> [pinyin-db]
+build/pinyinfont --input <font.ttf> --pinyin-db <pinyin-db.txt> [--output <out.ttf>]
 ```
 
-If `pinyin-db` is omitted, `build` mode reads `data/TGHZ2013.txt` relative to the current working directory. Run the command from the repository root or pass an explicit path:
+The pinyin database is required because it controls which pinyin readings are synthesized. If `--output` is omitted, the output path defaults to `<font.ttf>.pinyin.ttf`.
 
 ```sh
-build/pinyinfont build input.ttf data/TGHZ2013.txt
+build/pinyinfont --input input.ttf --pinyin-db data/TGHZ2013.txt
 ```
 
-Diagnostic modes retained in the CLI:
+## Tools
+
+Developer diagnostics live in `font_tool`:
 
 ```sh
-build/pinyinfont dump <font.ttf>
-build/pinyinfont bench <font-directory>
-build/pinyinfont rewrite <font.ttf>
+build/font_tool info --input <font.ttf>
+build/font_tool bench-parse --input <font-directory>
+build/font_tool rewrite --input <font.ttf> [--output <out.ttf>]
+build/font_tool table-dump --input <font.ttf> --table <tag> [--output <file.dat>]
+build/font_tool table-purge --input <font.ttf> --table <tag> [--output <out.ttf>]
 ```
-
-Development table utilities remain separate under `tools/` and build as `font_table_tool`.

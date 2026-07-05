@@ -57,6 +57,10 @@ public:
     Status Build(
         const char *sourceFont, 
         const PinyinDB &pinyinDB);
+    Status Build(
+        const char *sourceFont,
+        const char *outputFont,
+        const PinyinDB &pinyinDB);
     void GetStats(
         uint16_t &glyphCountOld, 
         uint16_t &glyphCountAddOK, 

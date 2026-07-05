@@ -1,414 +1,123 @@
-#include "ot_font_parser.h"
-#include "ot_font_writer.h"
 #include "pinyin_db.h"
 #include "pinyin_font_builder.h"
 #include <cstdio>
-#include <cstdlib>
-#include <ctime>
-#include <set>
-#include <functional>
-#include <chrono>
-using namespace std::chrono;
-
-#ifdef _WIN32
-  #define WIN32_LEAN_AND_MEAN
-  #include <windows.h>
-#else
-  #include <sys/types.h>
-  #include <sys/stat.h>
-  #include <unistd.h>
-  #include <dirent.h>
-#endif
+#include <cstring>
+#include <string>
 
 //------------------------------------------------------------------------------
 
-static void dumpBasicInfo(const OpenType_Font &font)
+static void printUsage(const char *program)
 {
-    const OpenType_Head &head = font.Head();
-    fprintf(stdout, "Head:\n");
-    fprintf(stdout, "  Version = 0x%08x\n", head.Version);
-    fprintf(stdout, "  Flags = 0x%04x\n", (unsigned int)head.Flags);
-    fprintf(stdout, "  UnitsPerEm = %d\n", (int)head.UnitsPerEm);
-    fprintf(stdout, "  MacStyle = 0x%04x\n", (unsigned int)head.MacStyle);
-    fprintf(stdout, "\n");
-    const OpenType_Maxp &maxp = font.Maxp();
-    fprintf(stdout, "Maxp:\n");
-    fprintf(stdout, "  Version = 0x%08x\n", maxp.Version);
-    fprintf(stdout, "  NumGlyphs = %d\n", (int)maxp.NumGlyphs);
-    fprintf(stdout, "  MaxPoints = %d\n", (int)maxp.MaxPoints);
-    fprintf(stdout, "  MaxContours = %d\n", (int)maxp.MaxContours);
-    fprintf(stdout, "  MaxCompositePoints = %d\n", (int)maxp.MaxCompositePoints);
-    fprintf(stdout, "  MaxCompositeContours = %d\n", (int)maxp.MaxCompositeContours);
-    fprintf(stdout, "  MaxComponentElements = %d\n", (int)maxp.MaxComponentElements);
-    fprintf(stdout, "  MaxComponentDepth = %d\n", (int)maxp.MaxComponentDepth);
-    fprintf(stdout, "\n");
-    const OpenType_OS2 &os2 = font.OS2();
-    fprintf(stdout, "OS/2:\n");
-    fprintf(stdout, "  version = %d\n", (int)os2.version);
-    fprintf(stdout, "  xAvgCharWidth = %d\n", (int)os2.xAvgCharWidth);
-    fprintf(stdout, "  usWeightClass = %u\n", (unsigned int)os2.usWeightClass);
-    fprintf(stdout, "  usWidthClass = %u\n", (unsigned int)os2.usWidthClass);
-    fprintf(stdout, "  fsType = 0x%04x\n", (unsigned int)os2.fsType);
-    fprintf(stdout, "\n");
+    std::fprintf(stdout,
+        "usage: %s --input <font.ttf> --pinyin-db <pinyin-db.txt> [--output <out.ttf>]\n",
+        program);
 }
 
-static void __printNameRecords(const char *name, const std::vector<OpenType_NameRecord> &records)
+static bool isOption(const char *arg, const char *name)
 {
-    if (records.size() > 0) {
-        for (size_t i = 0; i < records.size(); i++) {
-            fprintf(stdout, "  %s = %ls (%d, %d, %d)\n", 
-                name, records[i].String.c_str(), records[i].PlatformID, records[i].EncodingID, records[i].LanguageID);
+    return std::strcmp(arg, name) == 0;
+}
+
+static bool parseArgs(
+    int argc,
+    char *argv[],
+    const char *&input,
+    const char *&pinyinDB,
+    const char *&output)
+{
+    input = nullptr;
+    pinyinDB = nullptr;
+    output = nullptr;
+
+    for (int i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (isOption(arg, "--help") || isOption(arg, "-h")) {
+            return false;
         }
-    } else {
-        fprintf(stdout, "  %s = <NotFound>\n", name);
-    }
-}
-
-static void dumpName(const OpenType_Font &font)
-{
-    std::vector<OpenType_NameRecord> nameRecords;
-
-    fprintf(stdout, "Name:\n");
-
-    font.Name(1, nameRecords);  // Font Family name
-    __printNameRecords("FamilyName", nameRecords);
-    font.Name(2, nameRecords);  // Font Subfamily name
-    __printNameRecords("SubfamilyName", nameRecords);
-    font.Name(3, nameRecords);  // Unique font identifier
-    __printNameRecords("UniqueFontIdentifier", nameRecords);
-    font.Name(4, nameRecords);  // Full font name
-    __printNameRecords("FullName", nameRecords);
-    font.Name(5, nameRecords);  // Version string
-    __printNameRecords("VersionString", nameRecords);
-    font.Name(6, nameRecords);  // PostScript name
-    __printNameRecords("PostScriptName", nameRecords);
-    font.Name(7, nameRecords);  // Trademark
-    __printNameRecords("Trademark", nameRecords);
-    font.Name(8, nameRecords);  // Manufacturer Name
-    __printNameRecords("ManufacturerName", nameRecords);
-    font.Name(9, nameRecords);  // Designer
-    __printNameRecords("Designer", nameRecords);
-    font.Name(10, nameRecords);  // Description
-    __printNameRecords("Description", nameRecords);
-
-    fprintf(stdout, "\n");
-}
-
-static void dumpPost(const OpenType_Font &font, const std::set<int> &indices)
-{
-    fprintf(stdout, "Post:\n");
-    fprintf(stdout, "  Version = 0x%08x\n", font.Post().Version);
-    fprintf(stdout, "  IsFixedPitch = %u\n", (unsigned int)font.Post().IsFixedPitch);
-    
-    std::string name;
-    for (auto iter = indices.begin(); iter != indices.end(); ++iter) {
-        int index = *iter;
-        font.GlyphName(index, name);
-        fprintf(stdout, "  GlyphName_%d = %s\n", index, name.c_str());
-    }
-
-    fprintf(stdout, "\n");
-}
-
-static void dumpGlyph(const OpenType_Font &font, const std::set<int> &indices)
-{
-    fprintf(stdout, "Glyph:\n");
-    fprintf(stdout, "  Count = %d\n", font.GlyphCount());
-    for (auto iter = indices.begin(); iter != indices.end(); ++iter) {
-        int index = *iter;
-        const OpenType_GlyphHeader *pHeader = NULL;
-        font.Glyph(index, &pHeader);
-        if (pHeader == NULL) {
-            fprintf(stdout, "  Glyph_%d = <NoOutline>\n", index);
-        } else if (pHeader->NumberOfContours >= 0) {
-            OpenType_GlyphSimple *pSimple = (OpenType_GlyphSimple*)pHeader;
-            fprintf(stdout, "  Glyph_%d = Simple{ Contours=%d Points=%d }\n", 
-                index, (int)pSimple->NumberOfContours, (int)pSimple->Points.size());
+        if (i + 1 >= argc) {
+            std::fprintf(stderr, "missing value for %s\n", arg);
+            return false;
+        }
+        if (isOption(arg, "--input")) {
+            input = argv[++i];
+        } else if (isOption(arg, "--pinyin-db")) {
+            pinyinDB = argv[++i];
+        } else if (isOption(arg, "--output")) {
+            output = argv[++i];
         } else {
-            OpenType_GlyphComposite *pComposite = (OpenType_GlyphComposite*)pHeader;
-            fprintf(stdout, "  Glyph_%d = Composite{", index);
-            for (size_t j = 0; j < pComposite->SubGlyphs.size(); j++) {
-                fprintf(stdout, " %d", (int)pComposite->SubGlyphs[j].GlyphIndex);
-            }
-            fprintf(stdout, " }\n");
+            std::fprintf(stderr, "unknown option: %s\n", arg);
+            return false;
         }
     }
-    fprintf(stdout, "\n");
-}
 
-static void dumpHmtx(const OpenType_Font &font, const std::set<int> &indices)
-{
-    fprintf(stdout, "Hhea+Hmtx:\n");
-    fprintf(stdout, "  Ascender = %d\n", (int)font.Hhea().Ascender);
-    fprintf(stdout, "  Descender = %d\n", (int)font.Hhea().Descender);
-    fprintf(stdout, "  LineGap = %d\n", (int)font.Hhea().LineGap);
-    fprintf(stdout, "  AdvanceWidthMax = %d\n", (int)font.Hhea().AdvanceWidthMax);
-    fprintf(stdout, "  MinLeftSideBearing = %d\n", (int)font.Hhea().MinLeftSideBearing);
-    fprintf(stdout, "  MinRightSideBearing = %d\n", (int)font.Hhea().MinRightSideBearing);
-    fprintf(stdout, "  XMaxExtent = %d\n", (int)font.Hhea().XMaxExtent);
-    fprintf(stdout, "  NumberOfHMetrics = %d\n", (int)font.Hhea().NumberOfHMetrics);
-    for (auto iter = indices.begin(); iter != indices.end(); ++iter) {
-        int index = *iter;
-        OpenType_LongHorMetric mtx;
-        font.GlyphHorMetric(index, mtx);
-        fprintf(stdout, "  Glyph_%d = { Advance=%d, LSB=%d }\n", 
-            index, (int)mtx.AdvanceWidth, (int)mtx.LSB);
-    }
-    fprintf(stdout, "\n");
-}
-
-static void dumpCmap(const OpenType_Font &font)
-{
-    fprintf(stdout, "Cmap:\n");
-    fprintf(stdout, "  U+0061 -> %d\n", (int)font.CharToGlyphIndex(0x0061));  // Latin Small Letter A
-    fprintf(stdout, "  U+0030 -> %d\n", (int)font.CharToGlyphIndex(0x0030));  // Digit Zero
-    fprintf(stdout, "  U+4E2D -> %d\n", (int)font.CharToGlyphIndex(0x4E2D));  // Ideograph central; center, middle; in the midst of; hit (target); attain CJK
-    fprintf(stdout, "  U+0304 -> %d\n", (int)font.CharToGlyphIndex(0x0304));  // Combining Macron
-    fprintf(stdout, "\n");
-}
-
-static int dumpFont(const char *filename)
-{
-    OpenType_Font font;
-    OpenType_Font_Parser parser;
-    Status status = parser.Parse(filename, &font);
-    if (status != kOk) {
-        fprintf(stderr, "Parse failed, error=%d\n", status);
-        return 1;
-    }
-    fprintf(stdout, "Parse succeeded\n");
-    fprintf(stdout, "\n");
-
-    int maxItems = font.GlyphCount();
-    if (maxItems > 16) {
-        maxItems = 16;
-    }
-    std::set<int> indices;
-    while (indices.size() < maxItems) {
-        indices.insert(rand() % font.GlyphCount());
-    }
-
-    dumpBasicInfo(font);
-    dumpName(font);
-    dumpPost(font, indices);
-    dumpGlyph(font, indices);
-    dumpHmtx(font, indices);
-    dumpCmap(font);
-
-    fprintf(stdout, "\n");
-    return 0;
-} 
-
-//------------------------------------------------------------------------------
-
-#ifdef _WIN32
-static bool walkDir(std::string dir, std::function<void(const char*)> fun)
-{
-    std::string searchPath = dir + "\\*";
-    WIN32_FIND_DATAA ffd;
-    HANDLE hFind = FindFirstFileA(searchPath.c_str(), &ffd);
-    if (hFind == INVALID_HANDLE_VALUE)
+    if (input == nullptr) {
+        std::fprintf(stderr, "missing required option: --input\n");
         return false;
-
-    do {
-        if (ffd.cFileName[0] == '.' && ffd.cFileName[1] == '\0')
-            continue;
-        if (ffd.cFileName[0] == '.' && ffd.cFileName[1] == '.' && ffd.cFileName[2] == '\0')
-            continue;
-
-        std::string fullpath = dir + "\\" + ffd.cFileName;
-
-        if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            walkDir(fullpath, fun);
-        } else {
-            size_t len = strlen(ffd.cFileName);
-            if (len > 4) {
-                if (_stricmp(&ffd.cFileName[len - 4], ".ttf") == 0) {
-                    fun(fullpath.c_str());
-                }
-            }
-        }
-    } while (FindNextFile(hFind, &ffd) != 0);
-
-    FindClose(hFind);
+    }
+    if (pinyinDB == nullptr) {
+        std::fprintf(stderr, "missing required option: --pinyin-db\n");
+        return false;
+    }
     return true;
 }
-#else
-static bool walkDir(std::string dir, std::function<void(const char*)> fun)
+
+static int buildFont(const char *filename, const char *dbFile, const char *outputFile)
 {
-    DIR *d = opendir(dir.c_str());
-    if (d == nullptr)
-        return false;
-
-    struct dirent *entry;
-    while ((entry = readdir(d))) {
-        if (entry->d_name[0] == '.' && entry->d_name[1] == '\0')
-            continue;
-        if (entry->d_name[0] == '.' && entry->d_name[1] == '.' && entry->d_name[2] == '\0')
-            continue;
-
-        std::string fullpath = dir + "/" + entry->d_name;
-
-        struct stat st = { 0 };
-        stat(fullpath.c_str(), &st);
-        if (S_ISDIR(st.st_mode)) {
-            walkDir(fullpath, fun);
-        } else {
-            size_t len = strlen(entry->d_name);
-            if (len > 4) {
-                if (strcasecmp(&entry->d_name[len - 4], ".ttf") == 0) {
-                    fun(fullpath.c_str());
-                }
-            }
-        }
+    std::string derivedOutput;
+    if (outputFile == nullptr) {
+        derivedOutput = filename;
+        derivedOutput += ".pinyin.ttf";
+        outputFile = derivedOutput.c_str();
     }
 
-    closedir(d);
-    return true;
-}
-#endif
-
-static int benchParse(const char *path)
-{
-    int totalFile = 0, failedFile = 0;
-    long long totalTime = 0, minTime = -1, maxTime = -1;
-    walkDir(path, [&](const char *filename){ 
-        fprintf(stdout, "%s\n", filename);
-        totalFile++;
-
-        OpenType_Font font;
-        OpenType_Font_Parser parser;
-        
-        auto start = system_clock::now();
-        Status status = parser.Parse(filename, &font);
-        if (status != kOk) {
-            fprintf(stdout, "  Parse failed, error=%d\n", status);
-            failedFile++;
-            return;
-        }
-        auto elapsedTime = duration_cast<microseconds>(system_clock::now() - start);
-        fprintf(stdout, "  Parse succeeded, time=%.2fms\n", elapsedTime.count()/1000.0);
-        totalTime += elapsedTime.count();
-        if (minTime == -1 || elapsedTime.count() < minTime) {
-            minTime = elapsedTime.count();
-        }
-        if (maxTime == -1 || elapsedTime.count() > maxTime) {
-            maxTime = elapsedTime.count();
-        }
-    });
-    fprintf(stdout, "\n");
-    fprintf(stdout, "totalFile = %d, failedFile = %d\n", totalFile, failedFile);
-    if (totalFile > failedFile) {
-        fprintf(stdout, "ParseTime: avg=%.2fms, min=%.2fms, max=%.2fms\n", 
-            totalTime/1000.0/(totalFile - failedFile), 
-            minTime/1000.0, 
-            maxTime/1000.0);
-    }
-    fprintf(stdout, "\n");
-    return 0;
-}
-
-//------------------------------------------------------------------------------
-
-static int rewriteFont(const char *filename)
-{
-    OpenType_Font font;
-
-    OpenType_Font_Parser parser;
-    Status status = parser.Parse(filename, &font);
-    if (status != kOk) {
-        fprintf(stderr, "Parse failed, error=%d\n", status);
-        return 1;
-    }
-    fprintf(stdout, "Parse succeeded\n");
-
-    OpenType_Font_Writer writer;
-    std::string newfile = filename;
-    if (newfile.length() > 4 && newfile[newfile.size() - 4] == '.') {
-        // remove file ext
-        newfile.resize(newfile.length() - 4);
-    }
-    newfile += ".rewrite.ttf";
-    status = writer.Write(newfile.c_str(), &font);
-    if (status != kOk) {
-        fprintf(stderr, "Write failed, error=%d\n", status);
-        return 1;
-    }
-    fprintf(stdout, "ReWrite succeeded\n");
-
-    fprintf(stdout, "\n");
-    return 0;
-}
-
-//------------------------------------------------------------------------------
-
-static int buildFont(const char *filename, const char *dbFile)
-{
     PinyinDB db;
-    fprintf(stdout, "DBFile = %s\n", dbFile);
+    std::fprintf(stdout, "Input = %s\n", filename);
+    std::fprintf(stdout, "PinyinDB = %s\n", dbFile);
+    std::fprintf(stdout, "Output = %s\n", outputFile);
     Status status = db.Load(dbFile);
     if (status != kOk) {
-        fprintf(stderr, "Load PinyinDB failed, error=%d\n", status);
+        std::fprintf(stderr, "Load PinyinDB failed, error=%d\n", status);
         return 1;
     }
-    fprintf(stdout, "PinyinDB loaded, records = %u\n", (unsigned int)db.Count());
-    fprintf(stdout, "\n");
+    std::fprintf(stdout, "PinyinDB loaded, records = %u\n", (unsigned int)db.Count());
+    std::fprintf(stdout, "\n");
 
     PinyinFontBuilder builder;
-    status = builder.Build(filename, db);
+    status = builder.Build(filename, outputFile, db);
     if (status != kOk) {
-        fprintf(stderr, "Build failed, error=%d\n", status);
+        std::fprintf(stderr, "Build failed, error=%d\n", status);
         return 1;
     }
-    std::string outfile = filename;
-    outfile += ".pinyin.ttf";
-    fprintf(stdout, "Build succeeded, outfile = %s\n", outfile.c_str());
+    std::fprintf(stdout, "Build succeeded\n");
 
     uint16_t glyphCountOld, glyphCountAddOK, glyphCountAddFailed;
     uint32_t parseTime, synthesisTime, writeTime;
     builder.GetStats(
-        glyphCountOld, glyphCountAddOK, glyphCountAddFailed, 
+        glyphCountOld, glyphCountAddOK, glyphCountAddFailed,
         parseTime, synthesisTime, writeTime);
-    fprintf(stdout, "  GlyphCountOld = %d\n", (int)glyphCountOld);
-    fprintf(stdout, "          AddOK = %d\n", (int)glyphCountAddOK);
-    fprintf(stdout, "      AddFailed = %d\n", (int)glyphCountAddFailed);
-    fprintf(stdout, "      ParseTime = %.2fms\n", parseTime / 1000.0);
-    fprintf(stdout, "  SynthesisTime = %.2fms\n", synthesisTime / 1000.0);
-    fprintf(stdout, "      WriteTime = %.2fms\n", writeTime / 1000.0);
+    std::fprintf(stdout, "  GlyphCountOld = %d\n", (int)glyphCountOld);
+    std::fprintf(stdout, "          AddOK = %d\n", (int)glyphCountAddOK);
+    std::fprintf(stdout, "      AddFailed = %d\n", (int)glyphCountAddFailed);
+    std::fprintf(stdout, "      ParseTime = %.2fms\n", parseTime / 1000.0);
+    std::fprintf(stdout, "  SynthesisTime = %.2fms\n", synthesisTime / 1000.0);
+    std::fprintf(stdout, "      WriteTime = %.2fms\n", writeTime / 1000.0);
 
-    fprintf(stdout, "\n");
+    std::fprintf(stdout, "\n");
     return 0;
 }
 
 //------------------------------------------------------------------------------
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    if (argc < 3) {
-        fprintf(stdout, "usage: %s mode path [pinyin-db]\n", argv[0]);
-        fprintf(stdout, "       mode: dump, bench, rewrite, build\n");
-        fprintf(stdout, "  pinyin-db: optional for build mode, defaults to data/TGHZ2013.txt\n");
+    const char *input = nullptr;
+    const char *pinyinDB = nullptr;
+    const char *output = nullptr;
+
+    if (!parseArgs(argc, argv, input, pinyinDB, output)) {
+        printUsage(argv[0]);
         return 1;
     }
-    const char *mode = argv[1];
-    const char *path = argv[2];
-    fprintf(stdout, "mode = %s\n", mode);
-    fprintf(stdout, "path = %s\n", path);
-    fprintf(stdout, "\n");
 
-    std::srand((unsigned int)std::time(0));
-
-    if (strcmp(mode, "dump") == 0) {
-        return dumpFont(path);
-    } else if (strcmp(mode, "bench") == 0) {
-        return benchParse(path);
-    } else if (strcmp(mode, "rewrite") == 0) {
-        return rewriteFont(path);
-    } else if (strcmp(mode, "build") == 0) {
-        const char *dbFile = (argc > 3) ? argv[3] : "data/TGHZ2013.txt";
-        return buildFont(path, dbFile);
-    } else {
-        fprintf(stdout, "unknown mode\n");
-        return 1;
-    }
+    return buildFont(input, pinyinDB, output);
 }

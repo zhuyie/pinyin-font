@@ -48,12 +48,14 @@ target_link_libraries(pinyinfont_cli
     pinyinfont)
 set_target_properties(pinyinfont_cli PROPERTIES OUTPUT_NAME pinyinfont)
 
-add_executable(font_table_tool
-    tools/font_table_tool.cpp)
-target_include_directories(font_table_tool
+add_executable(font_tool
+    tools/font_tool.cpp)
+target_include_directories(font_tool
     PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS})
+target_link_libraries(font_tool
+    pinyinfont)
 if (MSVC)
-    target_compile_definitions(font_table_tool PRIVATE "_CRT_SECURE_NO_WARNINGS")
+    target_compile_definitions(font_tool PRIVATE "_CRT_SECURE_NO_WARNINGS")
 endif()
 
 enable_testing()
