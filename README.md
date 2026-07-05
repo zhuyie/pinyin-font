@@ -56,3 +56,19 @@ build/font_tool table-purge --input <font.ttf> --table <tag> [--output <out.ttf>
 Visual validation lives in the standalone browser page `tools/preview.html`.
 Open it directly, select the generated pinyin font, and optionally select the
 original font for side-by-side comparison.
+
+## License
+
+This project is licensed under the MIT License.
+
+## Font Licensing Notice
+
+This tool modifies and writes font files. The project license applies only to
+this tool's source code and documentation; it does not grant any rights to use,
+modify, redistribute, embed, or publish third-party fonts.
+
+Before processing a font, make sure its license permits the intended use,
+including modification and redistribution of derived font files. Generated
+fonts remain subject to the license terms of the original font and any other
+applicable rights. You are responsible for ensuring that your use of input and
+generated fonts complies with the relevant font licenses.
