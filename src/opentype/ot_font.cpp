@@ -159,6 +159,33 @@ Status OpenType_Font::AddGlyph(
     glyphNames_.push_back(name);
 
     maxp_.NumGlyphs++;
+    if (newGlyph->XMin < head_.XMin)
+        head_.XMin = newGlyph->XMin;
+    if (newGlyph->YMin < head_.YMin)
+        head_.YMin = newGlyph->YMin;
+    if (newGlyph->XMax > head_.XMax)
+        head_.XMax = newGlyph->XMax;
+    if (newGlyph->YMax > head_.YMax)
+        head_.YMax = newGlyph->YMax;
+
+    if (mtx->AdvanceWidth > hhea_.AdvanceWidthMax)
+        hhea_.AdvanceWidthMax = mtx->AdvanceWidth;
+    if (mtx->LSB < hhea_.MinLeftSideBearing)
+        hhea_.MinLeftSideBearing = mtx->LSB;
+    int16_t extent = (int16_t)(mtx->LSB + newGlyph->XMax - newGlyph->XMin);
+    if (extent > hhea_.XMaxExtent)
+        hhea_.XMaxExtent = extent;
+    int16_t rsb = (int16_t)(mtx->AdvanceWidth - extent);
+    if (rsb < hhea_.MinRightSideBearing)
+        hhea_.MinRightSideBearing = rsb;
+
+    if (newGlyph->NumberOfContours < 0) {
+        const OpenType_GlyphComposite *composite = (const OpenType_GlyphComposite*)newGlyph;
+        if (composite->SubGlyphs.size() > maxp_.MaxComponentElements)
+            maxp_.MaxComponentElements = (uint16_t)composite->SubGlyphs.size();
+        if (maxp_.MaxComponentDepth < 1)
+            maxp_.MaxComponentDepth = 1;
+    }
 
     assert(glyphs_.size() == hmtx_.size());
     assert(glyphs_.size() == glyphNames_.size());

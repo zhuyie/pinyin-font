@@ -59,7 +59,7 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const char *outputFont, 
 
     __buildSubstitutions();
 
-    status = __retainCommonGlyphs();
+    status = __retainSourceCmap();
     if (status != kOk) {
         return status;
     }
@@ -221,6 +221,25 @@ Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
             glyphCountAddOK_++;
         } else {
             glyphCountAddFailed_++;
+        }
+    }
+    return kOk;
+}
+
+Status PinyinFontBuilder::__retainSourceCmap()
+{
+    char2index_.clear();
+    const std::vector<CmapSequentialMapGroup> &groups = font_.CmapGroups();
+    for (size_t i = 0; i < groups.size(); i++) {
+        const CmapSequentialMapGroup &group = groups[i];
+        for (uint32_t charcode = group.startCharCode; charcode <= group.endCharCode; charcode++) {
+            uint32_t glyphID = group.startGlyphID + (charcode - group.startCharCode);
+            if (glyphID > 0 && glyphID < (uint32_t)font_.GlyphCount()) {
+                char2index_[charcode] = (uint16_t)glyphID;
+            }
+            if (charcode == 0xFFFFFFFFu) {
+                break;
+            }
         }
     }
     return kOk;
@@ -464,10 +483,16 @@ Status PinyinFontBuilder::__updateCmap()
 {
     std::vector<CmapSequentialMapGroup> groups;
     CmapSequentialMapGroup group = { 0 };
+    bool hasGroup = false;
     for (auto iter = char2index_.begin(); iter != char2index_.end(); iter++) {
-        wchar_t charcode = iter->first;
+        uint32_t charcode = iter->first;
         uint16_t glyphID = iter->second;
-        if (charcode != group.endCharCode + 1 ||
+        if (!hasGroup) {
+            group.startCharCode = charcode;
+            group.endCharCode = charcode;
+            group.startGlyphID = glyphID;
+            hasGroup = true;
+        } else if (charcode != group.endCharCode + 1 ||
             glyphID != (group.startGlyphID + (group.endCharCode - group.startCharCode) + 1)) {
             // current group ended
             groups.push_back(group);
@@ -480,43 +505,9 @@ Status PinyinFontBuilder::__updateCmap()
         }
     }
     // last group
-    groups.push_back(group);
+    if (hasGroup) {
+        groups.push_back(group);
+    }
 
     return font_.SetCmap(groups);
-}
-
-Status PinyinFontBuilder::__retainCommonGlyphs()
-{
-    uint32_t charCode;
-    uint16_t glyphID;
-
-    // Basic Latin
-    for (charCode = 0x0001; charCode <= 0x007F; charCode++) {
-        glyphID = font_.CharToGlyphIndex(charCode);
-        if (glyphID != 0) {
-            char2index_[charCode] = glyphID;
-        }
-    }
-    // Latin-1 Supplement
-    for (charCode = 0x0080; charCode <= 0x00FF; charCode++) {
-        glyphID = font_.CharToGlyphIndex(charCode);
-        if (glyphID != 0) {
-            char2index_[charCode] = glyphID;
-        }
-    }
-    // CJK Symbols and Punctuation
-    for (charCode = 0x3000; charCode <= 0x303F; charCode++) {
-        glyphID = font_.CharToGlyphIndex(charCode);
-        if (glyphID != 0) {
-            char2index_[charCode] = glyphID;
-        }
-    }
-    // Euro Sign
-    charCode = 0x20AC;
-    glyphID = font_.CharToGlyphIndex(charCode);
-    if (glyphID != 0) {
-        char2index_[charCode] = glyphID;
-    }
-
-    return kOk;
 }

@@ -28,6 +28,7 @@ using namespace std::chrono;
 //------------------------------------------------------------------------------
 
 struct Options {
+    std::string source;
     std::string input;
     std::string output;
     std::string table;
@@ -37,6 +38,7 @@ static void printUsage(const char *program)
 {
     std::fprintf(stdout, "usage:\n");
     std::fprintf(stdout, "  %s info --input <font.ttf>\n", program);
+    std::fprintf(stdout, "  %s integrity --source <original.ttf> --input <generated.ttf>\n", program);
     std::fprintf(stdout, "  %s bench-parse --input <font-directory>\n", program);
     std::fprintf(stdout, "  %s rewrite --input <font.ttf> [--output <out.ttf>]\n", program);
     std::fprintf(stdout, "  %s table-dump --input <font.ttf> --table <tag> [--output <file.dat>]\n", program);
@@ -57,6 +59,8 @@ static bool parseOptions(int argc, char *argv[], int start, Options &options)
         }
         if (std::strcmp(arg, "--input") == 0) {
             options.input = argv[++i];
+        } else if (std::strcmp(arg, "--source") == 0) {
+            options.source = argv[++i];
         } else if (std::strcmp(arg, "--output") == 0) {
             options.output = argv[++i];
         } else if (std::strcmp(arg, "--table") == 0) {
@@ -73,6 +77,15 @@ static bool requireInput(const Options &options)
 {
     if (options.input.empty()) {
         std::fprintf(stderr, "missing required option: --input\n");
+        return false;
+    }
+    return true;
+}
+
+static bool requireSource(const Options &options)
+{
+    if (options.source.empty()) {
+        std::fprintf(stderr, "missing required option: --source\n");
         return false;
     }
     return true;
@@ -286,6 +299,188 @@ static int printFontInfo(const char *filename)
     dumpCmap(font);
 
     std::fprintf(stdout, "\n");
+    return 0;
+}
+
+//------------------------------------------------------------------------------
+
+static int parseFont(const char *filename, OpenType_Font &font)
+{
+    OpenType_Font_Parser parser;
+    Status status = parser.Parse(filename, &font);
+    if (status != kOk) {
+        std::fprintf(stderr, "Parse failed for %s, error=%d\n", filename, status);
+        return 1;
+    }
+    return 0;
+}
+
+static bool isGeneratedGlyph(const OpenType_Font &source, uint16_t glyphID)
+{
+    return glyphID >= (uint16_t)source.GlyphCount();
+}
+
+static void checkCmapIntegrity(const OpenType_Font &source, const OpenType_Font &generated)
+{
+    int total = 0;
+    int preserved = 0;
+    int generatedReplacement = 0;
+    int dropped = 0;
+    int unexpectedChanged = 0;
+
+    const std::vector<CmapSequentialMapGroup> &groups = source.CmapGroups();
+    for (size_t i = 0; i < groups.size(); i++) {
+        const CmapSequentialMapGroup &group = groups[i];
+        for (uint32_t charcode = group.startCharCode; charcode <= group.endCharCode; charcode++) {
+            uint16_t sourceGlyphID = source.CharToGlyphIndex(charcode);
+            uint16_t generatedGlyphID = generated.CharToGlyphIndex(charcode);
+            if (sourceGlyphID != 0) {
+                total++;
+                if (generatedGlyphID == 0) {
+                    dropped++;
+                } else if (generatedGlyphID == sourceGlyphID) {
+                    preserved++;
+                } else if (isGeneratedGlyph(source, generatedGlyphID)) {
+                    generatedReplacement++;
+                } else {
+                    unexpectedChanged++;
+                }
+            }
+            if (charcode == 0xFFFFFFFFu) {
+                break;
+            }
+        }
+    }
+
+    std::fprintf(stdout, "Cmap integrity:\n");
+    std::fprintf(stdout, "  SourceMappings = %d\n", total);
+    std::fprintf(stdout, "  Preserved = %d\n", preserved);
+    std::fprintf(stdout, "  GeneratedReplacements = %d\n", generatedReplacement);
+    std::fprintf(stdout, "  Dropped = %d\n", dropped);
+    std::fprintf(stdout, "  UnexpectedChanged = %d\n", unexpectedChanged);
+    std::fprintf(stdout, "\n");
+}
+
+static int compositeDepth(const OpenType_Font &font, uint16_t glyphID, std::vector<uint8_t> &visiting)
+{
+    if (glyphID >= (uint16_t)font.GlyphCount()) {
+        return 0;
+    }
+    if (visiting[glyphID]) {
+        return 0;
+    }
+    const OpenType_GlyphHeader *header = nullptr;
+    font.Glyph(glyphID, &header);
+    if (header == nullptr || header->NumberOfContours >= 0) {
+        return 0;
+    }
+
+    visiting[glyphID] = 1;
+    const OpenType_GlyphComposite *composite = (const OpenType_GlyphComposite*)header;
+    int depth = 1;
+    for (size_t i = 0; i < composite->SubGlyphs.size(); i++) {
+        int componentDepth = 1 + compositeDepth(font, composite->SubGlyphs[i].GlyphIndex, visiting);
+        if (componentDepth > depth) {
+            depth = componentDepth;
+        }
+    }
+    visiting[glyphID] = 0;
+    return depth;
+}
+
+static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Font &generated)
+{
+    int checkedGlyphs = 0;
+    int xMinBeforeHead = 0;
+    int yMinBeforeHead = 0;
+    int xMaxAfterHead = 0;
+    int yMaxAfterHead = 0;
+    int xMaxAfterAdvance = 0;
+    int yMaxAfterHheaAscender = 0;
+    int yMinBeforeHheaDescender = 0;
+    int yMaxAfterWinAscent = 0;
+    int yMinBeforeWinDescent = 0;
+    int maxTopComponents = 0;
+    int maxDepth = 0;
+    int composites = 0;
+
+    int firstGeneratedGlyph = source.GlyphCount();
+    std::vector<uint8_t> visiting((size_t)generated.GlyphCount(), 0);
+    for (int i = firstGeneratedGlyph; i < generated.GlyphCount(); i++) {
+        const OpenType_GlyphHeader *header = nullptr;
+        generated.Glyph(i, &header);
+        if (header == nullptr) {
+            continue;
+        }
+        checkedGlyphs++;
+
+        OpenType_LongHorMetric mtx;
+        generated.GlyphHorMetric(i, mtx);
+        if (header->XMin < generated.Head().XMin) xMinBeforeHead++;
+        if (header->YMin < generated.Head().YMin) yMinBeforeHead++;
+        if (header->XMax > generated.Head().XMax) xMaxAfterHead++;
+        if (header->YMax > generated.Head().YMax) yMaxAfterHead++;
+        if (header->XMax > mtx.AdvanceWidth) xMaxAfterAdvance++;
+        if (header->YMax > generated.Hhea().Ascender) yMaxAfterHheaAscender++;
+        if (header->YMin < generated.Hhea().Descender) yMinBeforeHheaDescender++;
+        if ((int)header->YMax > (int)generated.OS2().usWinAscent) yMaxAfterWinAscent++;
+        if ((int)-header->YMin > (int)generated.OS2().usWinDescent) yMinBeforeWinDescent++;
+
+        if (header->NumberOfContours < 0) {
+            const OpenType_GlyphComposite *composite = (const OpenType_GlyphComposite*)header;
+            composites++;
+            if ((int)composite->SubGlyphs.size() > maxTopComponents) {
+                maxTopComponents = (int)composite->SubGlyphs.size();
+            }
+            int depth = compositeDepth(generated, (uint16_t)i, visiting);
+            if (depth > maxDepth) {
+                maxDepth = depth;
+            }
+        }
+    }
+
+    std::fprintf(stdout, "Generated glyph metrics:\n");
+    std::fprintf(stdout, "  CheckedGlyphs = %d\n", checkedGlyphs);
+    std::fprintf(stdout, "  HeadOverflow = { XMin=%d, YMin=%d, XMax=%d, YMax=%d }\n",
+        xMinBeforeHead, yMinBeforeHead, xMaxAfterHead, yMaxAfterHead);
+    std::fprintf(stdout, "  AdvanceOverflow = %d\n", xMaxAfterAdvance);
+    std::fprintf(stdout, "  HheaVerticalOverflow = { YMaxAboveAscender=%d, YMinBelowDescender=%d }\n",
+        yMaxAfterHheaAscender, yMinBeforeHheaDescender);
+    std::fprintf(stdout, "  OS2WinVerticalOverflow = { YMaxAboveWinAscent=%d, YMinBelowWinDescent=%d }\n",
+        yMaxAfterWinAscent, yMinBeforeWinDescent);
+    std::fprintf(stdout, "\n");
+
+    std::fprintf(stdout, "Composite metadata:\n");
+    std::fprintf(stdout, "  CompositeGlyphs = %d\n", composites);
+    std::fprintf(stdout, "  ActualMaxComponentElements = %d\n", maxTopComponents);
+    std::fprintf(stdout, "  SerializedMaxComponentElements = %d\n", (int)generated.Maxp().MaxComponentElements);
+    std::fprintf(stdout, "  ActualMaxComponentDepth = %d\n", maxDepth);
+    std::fprintf(stdout, "  SerializedMaxComponentDepth = %d\n", (int)generated.Maxp().MaxComponentDepth);
+    std::fprintf(stdout, "  ComponentElementsOK = %s\n",
+        maxTopComponents <= (int)generated.Maxp().MaxComponentElements ? "yes" : "no");
+    std::fprintf(stdout, "  ComponentDepthOK = %s\n",
+        maxDepth <= (int)generated.Maxp().MaxComponentDepth ? "yes" : "no");
+    std::fprintf(stdout, "\n");
+}
+
+static int checkGeneratedFontIntegrity(const char *sourceFile, const char *generatedFile)
+{
+    OpenType_Font source;
+    OpenType_Font generated;
+    if (parseFont(sourceFile, source) != 0) {
+        return 1;
+    }
+    if (parseFont(generatedFile, generated) != 0) {
+        return 1;
+    }
+
+    std::fprintf(stdout, "Integrity check:\n");
+    std::fprintf(stdout, "  Source = %s\n", sourceFile);
+    std::fprintf(stdout, "  Generated = %s\n", generatedFile);
+    std::fprintf(stdout, "\n");
+
+    checkCmapIntegrity(source, generated);
+    checkMetricIntegrity(source, generated);
     return 0;
 }
 
@@ -683,6 +878,10 @@ int main(int argc, char *argv[])
     if (std::strcmp(command, "info") == 0) {
         if (!requireInput(options)) return 1;
         return printFontInfo(options.input.c_str());
+    }
+    if (std::strcmp(command, "integrity") == 0) {
+        if (!requireSource(options) || !requireInput(options)) return 1;
+        return checkGeneratedFontIntegrity(options.source.c_str(), options.input.c_str());
     }
     if (std::strcmp(command, "bench-parse") == 0) {
         if (!requireInput(options)) return 1;

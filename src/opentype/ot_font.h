@@ -257,6 +257,7 @@ public:
     Status GlyphHorMetric(int index, OpenType_LongHorMetric &metric) const;
 
     uint16_t CharToGlyphIndex(uint32_t charcode) const;
+    const std::vector<CmapSequentialMapGroup>& CmapGroups() const { return char2index_; }
 
     Status Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records) const;
 

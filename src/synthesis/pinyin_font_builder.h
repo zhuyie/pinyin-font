@@ -38,7 +38,7 @@ class PinyinFontBuilder
     int16_t pinyinDY_;
     std::unordered_map<uint64_t, wchar_t> substitutions_;
 
-    std::map<wchar_t, uint16_t> char2index_;
+    std::map<uint32_t, uint16_t> char2index_;
 
     OpenType_GlyphComposite glyph_;
     std::vector<glyphInfo> pinyinGlyphInfos_;
@@ -75,6 +75,7 @@ private:
     bool __isMarkChar(wchar_t c);
     bool __alternativeChar(wchar_t &c);
     void __buildSubstitutions();
+    Status __retainSourceCmap();
     Status __addPinyinGlyphs(const PinyinDB &pinyinDB);
     Status __addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin);
     void __addSubGlyph(
@@ -85,7 +86,6 @@ private:
     bool __composeCluster(
         wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
     Status __updateCmap();
-    Status __retainCommonGlyphs();
 };
 
 //------------------------------------------------------------------------------
