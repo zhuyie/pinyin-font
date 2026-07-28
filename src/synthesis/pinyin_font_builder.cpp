@@ -281,7 +281,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     }
     for (size_t i = 0; i < pinyinGlyphs.size(); i++) {
         glyphInfo info = pinyinGlyphs[i];
-        uint16_t pinyinDX = hCenter - (uint16_t)((pinyinWidth / 2 - info.OffsetX) * pinyinRatio_);
+        int16_t pinyinDX = (int16_t)(hCenter - (pinyinWidth / 2 - info.OffsetX) * pinyinRatio_);
         __addSubGlyph(glyph, info.GlyphIndex, info.BBox, pinyinRatio_, 
             pinyinDX, (int16_t)(pinyinDY_ + info.OffsetY * pinyinRatio_), false);
     }
