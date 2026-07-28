@@ -370,6 +370,7 @@ bool PinyinFontBuilder::__composePinyin(
             }
             // start a new cluster
             cluster[0] = c;
+            cluster[1] = cluster[2] = 0;
         }
     }
     // last cluster
@@ -381,38 +382,36 @@ bool PinyinFontBuilder::__composePinyin(
 }
 
 bool PinyinFontBuilder::__composeCluster(
-    wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x)
+    const wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x)
 {
     if (cluster[0] == 0) {
         return true;
     }
 
-    for (;;) {
-        if (cluster[1] == 0) {
-            break;
-        }
-        uint64_t key = (uint64_t)cluster[0] << 32 | (uint64_t)cluster[1];
+    wchar_t baseChar = cluster[0];
+    wchar_t marks[2] = { cluster[1], cluster[2] };
+    while (marks[0] != 0) {
+        uint64_t key = (uint64_t)baseChar << 32 | (uint64_t)marks[0];
         auto iter = substitutions_.find(key);
         if (iter == substitutions_.end()) {
             break;
         }
-        cluster[0] = iter->second;
-        cluster[1] = cluster[2];
-        cluster[2] = 0;
+        baseChar = iter->second;
+        marks[0] = marks[1];
+        marks[1] = 0;
     }
 
     glyphInfo info;
-    int16_t hCenter, DY;
+    int16_t hCenter;
+    int16_t markY;
     const OpenType_GlyphHeader *pGlyph = NULL;
-    OpenType_LongHorMetric mtx = { 0 };
 
     // normal character
-    info.GlyphIndex = font_.CharToGlyphIndex(cluster[0]);
+    info.GlyphIndex = font_.CharToGlyphIndex(baseChar);
     if (info.GlyphIndex == 0) {
         return false;
     }
     font_.Glyph(info.GlyphIndex, &pGlyph);
-    font_.GlyphHorMetric(info.GlyphIndex, mtx);
     info.BBox.XMin = pGlyph->XMin;
     info.BBox.YMin = pGlyph->YMin;
     info.BBox.XMax = pGlyph->XMax;
@@ -423,59 +422,50 @@ bool PinyinFontBuilder::__composeCluster(
     glyphs.push_back(info);
 
     hCenter = (int16_t)(x + pinyinCharSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
-    DY = pGlyph->YMax + pinyinMarkVSpace_;
+    markY = pGlyph->YMax + pinyinMarkVSpace_;
 
     x += info.AdvanceWidth;
 
-    if (cluster[1] != 0) {
-        // 1st mark
-        info.GlyphIndex = font_.CharToGlyphIndex(cluster[1]);
-        if (info.GlyphIndex == 0) {
-            if (!__alternativeChar(cluster[1])) {
-                return false;
-            }
-            info.GlyphIndex = font_.CharToGlyphIndex(cluster[1]);
-            if (info.GlyphIndex == 0) {
-                return false;
-            }
+    for (size_t i = 0; i < 2 && marks[i] != 0; i++) {
+        int16_t markHeight = 0;
+        if (!__appendMarkGlyph(marks[i], hCenter, markY, glyphs, markHeight)) {
+            return false;
         }
-        font_.Glyph(info.GlyphIndex, &pGlyph);
-        font_.GlyphHorMetric(info.GlyphIndex, mtx);
-        info.BBox.XMin = pGlyph->XMin;
-        info.BBox.YMin = pGlyph->YMin;
-        info.BBox.XMax = pGlyph->XMax;
-        info.BBox.YMax = pGlyph->YMax;
-        info.OffsetX = hCenter - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
-        info.OffsetY = DY - pGlyph->YMin;
-        info.AdvanceWidth = pGlyph->XMax - pGlyph->XMin;
-        glyphs.push_back(info);
-        DY += (pGlyph->YMax - pGlyph->YMin) + pinyinMarkVSpace_;
-    }
-    if (cluster[2] != 0) {
-        // 2nd mark
-        info.GlyphIndex = font_.CharToGlyphIndex(cluster[2]);
-        if (info.GlyphIndex == 0) {
-            if (!__alternativeChar(cluster[2])) {
-                return false;
-            }
-            info.GlyphIndex = font_.CharToGlyphIndex(cluster[2]);
-            if (info.GlyphIndex == 0) {
-                return false;
-            }
+        if (i == 0 && marks[1] != 0) {
+            markY += markHeight + pinyinMarkVSpace_;
         }
-        font_.Glyph(info.GlyphIndex, &pGlyph);
-        font_.GlyphHorMetric(info.GlyphIndex, mtx);
-        info.BBox.XMin = pGlyph->XMin;
-        info.BBox.YMin = pGlyph->YMin;
-        info.BBox.XMax = pGlyph->XMax;
-        info.BBox.YMax = pGlyph->YMax;
-        info.OffsetX = hCenter - (pGlyph->XMax - pGlyph->XMin) / 2 - pGlyph->XMin;
-        info.OffsetY = DY - pGlyph->YMin;
-        info.AdvanceWidth = pGlyph->XMax - pGlyph->XMin;
-        glyphs.push_back(info);
     }
 
-    cluster[0] = cluster[1] = cluster[2] = 0;
+    return true;
+}
+
+bool PinyinFontBuilder::__appendMarkGlyph(
+    wchar_t mark, int16_t hCenter, int16_t y,
+    std::vector<glyphInfo> &glyphs, int16_t &markHeight)
+{
+    glyphInfo info;
+    info.GlyphIndex = font_.CharToGlyphIndex(mark);
+    if (info.GlyphIndex == 0) {
+        if (!__alternativeChar(mark)) {
+            return false;
+        }
+        info.GlyphIndex = font_.CharToGlyphIndex(mark);
+        if (info.GlyphIndex == 0) {
+            return false;
+        }
+    }
+
+    const OpenType_GlyphHeader *glyph = NULL;
+    font_.Glyph(info.GlyphIndex, &glyph);
+    info.BBox.XMin = glyph->XMin;
+    info.BBox.YMin = glyph->YMin;
+    info.BBox.XMax = glyph->XMax;
+    info.BBox.YMax = glyph->YMax;
+    info.OffsetX = hCenter - (glyph->XMax - glyph->XMin) / 2 - glyph->XMin;
+    info.OffsetY = y - glyph->YMin;
+    info.AdvanceWidth = glyph->XMax - glyph->XMin;
+    glyphs.push_back(info);
+    markHeight = glyph->YMax - glyph->YMin;
     return true;
 }
 

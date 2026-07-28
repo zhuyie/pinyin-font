@@ -84,7 +84,10 @@ private:
     bool __composePinyin(
         const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth);
     bool __composeCluster(
-        wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
+        const wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
+    bool __appendMarkGlyph(
+        wchar_t mark, int16_t hCenter, int16_t y,
+        std::vector<glyphInfo> &glyphs, int16_t &markHeight);
     Status __updateCmap();
 };
 
