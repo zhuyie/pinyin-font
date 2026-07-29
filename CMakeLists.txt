@@ -19,6 +19,8 @@ add_library(pinyinfont
     src/opentype/mac_glyph_names.cpp
     src/opentype/ot_font.h
     src/opentype/ot_font.cpp
+    src/opentype/ot_font_builder.h
+    src/opentype/ot_font_builder.cpp
     src/opentype/ot_font_parser.h
     src/opentype/ot_font_parser.cpp
     src/opentype/ot_cmap.h
@@ -30,6 +32,8 @@ add_library(pinyinfont
     src/opentype/ot_font_writer.cpp
     src/pinyin/pinyin_db.h
     src/pinyin/pinyin_db.cpp
+    src/synthesis/pinyin_components.h
+    src/synthesis/pinyin_components.cpp
     src/synthesis/pinyin_font_builder.h
     src/synthesis/pinyin_font_builder.cpp)
 target_include_directories(pinyinfont
@@ -69,3 +73,25 @@ target_link_libraries(pinyin_db_smoke
 add_test(
     NAME pinyin_db_smoke
     COMMAND pinyin_db_smoke "${CMAKE_CURRENT_SOURCE_DIR}/data/TGHZ2013.txt")
+
+add_executable(pinyin_components_test
+    tests/pinyin_components_test.cpp
+    tests/test_font_fixture.cpp)
+target_include_directories(pinyin_components_test
+    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS})
+target_link_libraries(pinyin_components_test
+    pinyinfont)
+add_test(
+    NAME pinyin_components_test
+    COMMAND pinyin_components_test "${CMAKE_CURRENT_BINARY_DIR}")
+
+add_executable(pinyin_synthesis_test
+    tests/pinyin_synthesis_test.cpp
+    tests/test_font_fixture.cpp)
+target_include_directories(pinyin_synthesis_test
+    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(pinyin_synthesis_test
+    pinyinfont)
+add_test(
+    NAME pinyin_synthesis_test
+    COMMAND pinyin_synthesis_test "${CMAKE_CURRENT_BINARY_DIR}")

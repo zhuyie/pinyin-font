@@ -2,6 +2,7 @@
 #include "ot_font_writer.h"
 #include "scope_guard.h"
 #include "utility.h"
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -403,6 +404,22 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
     int maxTopComponents = 0;
     int maxDepth = 0;
     int composites = 0;
+    int internalSimpleGlyphs = 0;
+    int internalMappedGlyphs = 0;
+    int internalBoundsMismatch = 0;
+    int internalInstructions = 0;
+    int actualMaxPoints = 0;
+    int actualMaxContours = 0;
+    std::set<uint16_t> mappedGlyphs;
+    const std::vector<CmapSequentialMapGroup> &cmapGroups = generated.CmapGroups();
+    for (size_t i = 0; i < cmapGroups.size(); i++) {
+        const CmapSequentialMapGroup &group = cmapGroups[i];
+        for (uint32_t charcode = group.startCharCode; charcode <= group.endCharCode; charcode++) {
+            uint16_t glyphID = generated.CharToGlyphIndex(charcode);
+            if (glyphID != 0) mappedGlyphs.insert(glyphID);
+            if (charcode == 0xFFFFFFFFu) break;
+        }
+    }
 
     int firstGeneratedGlyph = source.GlyphCount();
     std::vector<uint8_t> visiting((size_t)generated.GlyphCount(), 0);
@@ -436,6 +453,41 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
             if (depth > maxDepth) {
                 maxDepth = depth;
             }
+        } else {
+            const OpenType_GlyphSimple *simple = (const OpenType_GlyphSimple*)header;
+            actualMaxPoints = std::max(actualMaxPoints, (int)simple->Points.size());
+            actualMaxContours = std::max(actualMaxContours, (int)simple->EndPtsOfContours.size());
+
+            std::string glyphName;
+            generated.GlyphName(i, glyphName);
+            if (glyphName.find("pinyin.") == 0) {
+                internalSimpleGlyphs++;
+                if (mappedGlyphs.find((uint16_t)i) != mappedGlyphs.end()) {
+                    internalMappedGlyphs++;
+                }
+                if (!simple->Instructions.empty()) internalInstructions++;
+                if (!simple->Points.empty()) {
+                    int16_t xMin = simple->Points[0].X;
+                    int16_t yMin = simple->Points[0].Y;
+                    int16_t xMax = simple->Points[0].X;
+                    int16_t yMax = simple->Points[0].Y;
+                    for (size_t point = 1; point < simple->Points.size(); point++) {
+                        xMin = std::min(xMin, simple->Points[point].X);
+                        yMin = std::min(yMin, simple->Points[point].Y);
+                        xMax = std::max(xMax, simple->Points[point].X);
+                        yMax = std::max(yMax, simple->Points[point].Y);
+                    }
+                    if (xMin != simple->XMin || yMin != simple->YMin ||
+                        xMax != simple->XMax || yMax != simple->YMax) {
+                        internalBoundsMismatch++;
+                        std::fprintf(stdout,
+                            "  InternalBoundsMismatch = %s header:(%d,%d,%d,%d) points:(%d,%d,%d,%d)\n",
+                            glyphName.c_str(),
+                            simple->XMin, simple->YMin, simple->XMax, simple->YMax,
+                            xMin, yMin, xMax, yMax);
+                    }
+                }
+            }
         }
     }
 
@@ -460,6 +512,22 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
         maxTopComponents <= (int)generated.Maxp().MaxComponentElements ? "yes" : "no");
     std::fprintf(stdout, "  ComponentDepthOK = %s\n",
         maxDepth <= (int)generated.Maxp().MaxComponentDepth ? "yes" : "no");
+    std::fprintf(stdout, "\n");
+
+    std::fprintf(stdout, "Internal simple glyph metadata:\n");
+    std::fprintf(stdout, "  InternalSimpleGlyphs = %d\n", internalSimpleGlyphs);
+    std::fprintf(stdout, "  UnexpectedCmapMappings = %d\n", internalMappedGlyphs);
+    std::fprintf(stdout, "  BoundsMismatch = %d\n", internalBoundsMismatch);
+    std::fprintf(stdout, "  NonEmptyInstructions = %d\n", internalInstructions);
+    std::fprintf(stdout, "  ActualMaxPoints = %d\n", actualMaxPoints);
+    std::fprintf(stdout, "  SerializedMaxPoints = %d\n", (int)generated.Maxp().MaxPoints);
+    std::fprintf(stdout, "  ActualMaxContours = %d\n", actualMaxContours);
+    std::fprintf(stdout, "  SerializedMaxContours = %d\n", (int)generated.Maxp().MaxContours);
+    std::fprintf(stdout, "  SimpleMetadataOK = %s\n",
+        internalMappedGlyphs == 0 && internalBoundsMismatch == 0 &&
+        internalInstructions == 0 &&
+        actualMaxPoints <= (int)generated.Maxp().MaxPoints &&
+        actualMaxContours <= (int)generated.Maxp().MaxContours ? "yes" : "no");
     std::fprintf(stdout, "\n");
 }
 

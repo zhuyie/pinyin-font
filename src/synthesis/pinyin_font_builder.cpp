@@ -2,6 +2,7 @@
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
 #include "pinyin_db.h"
+#include "pinyin_components.h"
 #include <cassert>
 #include <chrono>
 using namespace std::chrono;
@@ -13,6 +14,7 @@ PinyinFontBuilder::PinyinFontBuilder()
   pinyinCharSpace_(0), pinyinMarkVSpace_(0), pinyinCharYMin_(0),
   baseDY_(0), pinyinDY_(0),
   glyphCountOld_(0), glyphCountAddOK_(0), glyphCountAddFailed_(0),
+  usedGeneratedMark_(false), usedDotlessI_(false),
   parseTime_(0), synthesisTime_(0), writeTime_(0)
 {
 }
@@ -42,9 +44,12 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const char *outputFont, 
     auto parseDone = system_clock::now();
 
     glyphCountOld_ = font_.GlyphCount();
+    glyphCountAddOK_ = glyphCountAddFailed_ = 0;
+    synthesisStats_ = PinyinSynthesisStats();
+    components_.reset(new PinyinComponents(font_));
 
     pinyinCharSpace_ = (int16_t)((font_.Head().XMax - font_.Head().XMin) * 0.1);
-    pinyinMarkVSpace_ = (int16_t)(pinyinCharSpace_ * 0.33);
+    pinyinMarkVSpace_ = components_->MarkGap();
     pinyinCharYMin_ = __calcPinyinCharYMin();
 
     baseDY_ = 0;
@@ -107,6 +112,18 @@ void PinyinFontBuilder::GetStats(
     writeTime = writeTime_;
 }
 
+void PinyinFontBuilder::GetComponentStats(PinyinComponentStats &stats) const
+{
+    stats = PinyinComponentStats();
+    if (!components_) return;
+    stats.MacronUses = components_->GeneratedMarkUseCount(0x0304);
+    stats.AcuteUses = components_->GeneratedMarkUseCount(0x0301);
+    stats.CaronUses = components_->GeneratedMarkUseCount(0x030C);
+    stats.GraveUses = components_->GeneratedMarkUseCount(0x0300);
+    stats.DiaeresisUses = components_->GeneratedMarkUseCount(0x0308);
+    stats.DotlessIUses = components_->DotlessIUseCount();
+}
+
 int16_t PinyinFontBuilder::__calcPinyinCharYMin()
 {
     static char testChars[] = { 'f', 'g', 'j', 'p', 'q', 'y' };
@@ -148,28 +165,15 @@ bool PinyinFontBuilder::__isMarkChar(wchar_t c)
     return (c == 0x0304) || (c == 0x0301) || (c == 0x030C) || (c == 0x0300) || (c == 0x0308);
 }
 
-bool PinyinFontBuilder::__alternativeChar(wchar_t &c)
-{
-    switch (c) {
-    case 0x0304: c = 0x00AF; return true;
-    case 0x0301: c = 0x00B4; return true;
-    case 0x030C: c = 0x02C7; return true;
-    case 0x0300: c = 0x0060; return true;
-    case 0x0308: c = 0x00A8; return true;
-    }
-    return false;
-}
-
 void PinyinFontBuilder::__buildSubstitutions()
 {
+    substitutions_.clear();
     static wchar_t s_substitution[][3] = {
-        // ---- mandatory ----
         { 'i', 0x0304, 0x012B },  // ī
         { 'i', 0x0301, 0x00ED },  // í
         { 'i', 0x030C, 0x01D0 },  // ǐ
         { 'i', 0x0300, 0x00EC },  // ì
 
-        // ---- optional ----
         { 'u', 0x0308, 0x00FC },  // ü
 
         { 'a', 0x0304, 0x0101 },  // ā
@@ -199,7 +203,7 @@ void PinyinFontBuilder::__buildSubstitutions()
     };
     for (int i = 0; i < sizeof(s_substitution) / sizeof(s_substitution[0]); i++) {
         uint16_t glyphIndex = font_.CharToGlyphIndex(s_substitution[i][2]);
-        if (i < 4 || glyphIndex != 0) {
+        if (glyphIndex != 0) {
             uint64_t key = (uint64_t)(s_substitution[i][0]) << 32 | 
                            (uint64_t)(s_substitution[i][1]);
             substitutions_[key] = s_substitution[i][2];
@@ -214,13 +218,30 @@ Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
     size_t count = pinyinDB.Count();
     for (size_t i = 0; i < count; i++) {
         pinyinDB.GetRecord(i, record);
-        status = __addPinyinGlyph(record.charcode, record.pinyin[0]);
+        ComposeFailure composeFailure = ComposeFailure::None;
+        status = __addPinyinGlyph(
+            record.charcode, record.pinyin[0], composeFailure);
         if (status == kNotFound) {
+            synthesisStats_.SourceHanMissing++;
             continue;
         } else if (status == kOk) {
             glyphCountAddOK_++;
+            if (usedDotlessI_) {
+                synthesisStats_.DotlessIGenerated++;
+            } else if (usedGeneratedMark_) {
+                synthesisStats_.ToneFallbackGenerated++;
+            } else {
+                synthesisStats_.SourceOnlyGenerated++;
+            }
         } else {
             glyphCountAddFailed_++;
+            if (composeFailure == ComposeFailure::DotlessI) {
+                synthesisStats_.DotlessIFailed++;
+            } else if (composeFailure == ComposeFailure::Component) {
+                synthesisStats_.ComponentFailed++;
+            } else {
+                synthesisStats_.OtherFailed++;
+            }
         }
     }
     return kOk;
@@ -245,8 +266,15 @@ Status PinyinFontBuilder::__retainSourceCmap()
     return kOk;
 }
 
-Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring &pinyin)
+Status PinyinFontBuilder::__addPinyinGlyph(
+    uint32_t charcode,
+    const std::wstring &pinyin,
+    ComposeFailure &composeFailure)
 {
+    composeFailure = ComposeFailure::None;
+    usedGeneratedMark_ = false;
+    usedDotlessI_ = false;
+
     uint32_t baseGlyphIndex = font_.CharToGlyphIndex(charcode);
     if (baseGlyphIndex == 0) {
         return kNotFound;
@@ -276,7 +304,8 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     std::vector<glyphInfo> &pinyinGlyphs = pinyinGlyphInfos_;
     pinyinGlyphs.resize(0);
     int16_t pinyinWidth = 0;
-    if (!__composePinyin(pinyin, pinyinGlyphs, pinyinWidth)) {
+    composeFailure = __composePinyin(pinyin, pinyinGlyphs, pinyinWidth);
+    if (composeFailure != ComposeFailure::None) {
         return kError;
     }
     for (size_t i = 0; i < pinyinGlyphs.size(); i++) {
@@ -289,7 +318,7 @@ Status PinyinFontBuilder::__addPinyinGlyph(uint32_t charcode, const std::wstring
     __addSubGlyph(glyph, baseGlyphIndex, baseBBox, baseRatio_, baseDX, baseDY_, true);
 
     char nameBuf[20] = { 0 };
-    sprintf(nameBuf, "uni%04X_py00", (unsigned int)charcode);
+    snprintf(nameBuf, sizeof(nameBuf), "uni%04X_py00", (unsigned int)charcode);
     OpenType_GlyphName name;
     name.ID = 258;
     name.Str = nameBuf;
@@ -340,7 +369,7 @@ void PinyinFontBuilder::__addSubGlyph(
         glyph.YMax = newBBox.YMax;
 }
 
-bool PinyinFontBuilder::__composePinyin(
+PinyinFontBuilder::ComposeFailure PinyinFontBuilder::__composePinyin(
     const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth)
 {
     glyphs.clear();
@@ -355,37 +384,33 @@ bool PinyinFontBuilder::__composePinyin(
         wchar_t c = pinyin[i];
         if (__isMarkChar(c)) {
             if (cluster[0] == 0) {
-                return false;
+                return ComposeFailure::Other;
             } else if (cluster[1] == 0) {
                 cluster[1] = c;
             } else if (cluster[2] == 0) {
                 cluster[2] = c;
             } else {
-                return false;
+                return ComposeFailure::Other;
             }
         } else {
             // previous cluster ended
-            if (!__composeCluster(cluster, glyphs, totalWidth)) {
-                return false;
-            }
+            ComposeFailure failure =
+                __composeCluster(cluster, glyphs, totalWidth);
+            if (failure != ComposeFailure::None) return failure;
             // start a new cluster
             cluster[0] = c;
             cluster[1] = cluster[2] = 0;
         }
     }
     // last cluster
-    if (!__composeCluster(cluster, glyphs, totalWidth)) {
-        return false;
-    }
-
-    return true;
+    return __composeCluster(cluster, glyphs, totalWidth);
 }
 
-bool PinyinFontBuilder::__composeCluster(
+PinyinFontBuilder::ComposeFailure PinyinFontBuilder::__composeCluster(
     const wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x)
 {
     if (cluster[0] == 0) {
-        return true;
+        return ComposeFailure::None;
     }
 
     wchar_t baseChar = cluster[0];
@@ -401,72 +426,80 @@ bool PinyinFontBuilder::__composeCluster(
         marks[1] = 0;
     }
 
-    glyphInfo info;
+    glyphInfo info = {};
     int16_t hCenter;
     int16_t markY;
     const OpenType_GlyphHeader *pGlyph = NULL;
 
-    // normal character
-    info.GlyphIndex = font_.CharToGlyphIndex(baseChar);
-    if (info.GlyphIndex == 0) {
-        return false;
+    PinyinComponentBounds componentBounds = {};
+    bool useDotlessI = baseChar == 'i' && marks[0] != 0;
+    if (useDotlessI) {
+        PinyinComponentGlyph component = {};
+        if (!components_ || components_->ResolveDotlessI(component) != kOk) {
+            return ComposeFailure::DotlessI;
+        }
+        info.GlyphIndex = component.GlyphIndex;
+        componentBounds = component.Bounds;
+        usedDotlessI_ = component.Generated;
+    } else {
+        info.GlyphIndex = font_.CharToGlyphIndex(baseChar);
+        if (info.GlyphIndex == 0) {
+            return ComposeFailure::Component;
+        }
+        font_.Glyph(info.GlyphIndex, &pGlyph);
+        componentBounds = { pGlyph->XMin, pGlyph->YMin, pGlyph->XMax, pGlyph->YMax };
     }
-    font_.Glyph(info.GlyphIndex, &pGlyph);
-    info.BBox.XMin = pGlyph->XMin;
-    info.BBox.YMin = pGlyph->YMin;
-    info.BBox.XMax = pGlyph->XMax;
-    info.BBox.YMax = pGlyph->YMax;
-    info.OffsetX = x - pGlyph->XMin + pinyinCharSpace_ / 2;
+    info.BBox.XMin = componentBounds.XMin;
+    info.BBox.YMin = componentBounds.YMin;
+    info.BBox.XMax = componentBounds.XMax;
+    info.BBox.YMax = componentBounds.YMax;
+    info.OffsetX = x - componentBounds.XMin + pinyinCharSpace_ / 2;
     info.OffsetY = 0;
-    info.AdvanceWidth = (pGlyph->XMax - pGlyph->XMin) + pinyinCharSpace_;
+    info.AdvanceWidth = (componentBounds.XMax - componentBounds.XMin) + pinyinCharSpace_;
     glyphs.push_back(info);
 
-    hCenter = (int16_t)(x + pinyinCharSpace_ / 2 + (pGlyph->XMax - pGlyph->XMin) / 2);
-    markY = pGlyph->YMax + pinyinMarkVSpace_;
+    hCenter = (int16_t)(x + pinyinCharSpace_ / 2 +
+        (componentBounds.XMax - componentBounds.XMin) / 2);
+    markY = componentBounds.YMax + pinyinMarkVSpace_;
 
     x += info.AdvanceWidth;
 
     for (size_t i = 0; i < 2 && marks[i] != 0; i++) {
         int16_t markHeight = 0;
-        if (!__appendMarkGlyph(marks[i], hCenter, markY, glyphs, markHeight)) {
-            return false;
-        }
+        ComposeFailure failure =
+            __appendMarkGlyph(marks[i], hCenter, markY, glyphs, markHeight);
+        if (failure != ComposeFailure::None) return failure;
         if (i == 0 && marks[1] != 0) {
             markY += markHeight + pinyinMarkVSpace_;
         }
     }
 
-    return true;
+    return ComposeFailure::None;
 }
 
-bool PinyinFontBuilder::__appendMarkGlyph(
+PinyinFontBuilder::ComposeFailure PinyinFontBuilder::__appendMarkGlyph(
     wchar_t mark, int16_t hCenter, int16_t y,
     std::vector<glyphInfo> &glyphs, int16_t &markHeight)
 {
-    glyphInfo info;
-    info.GlyphIndex = font_.CharToGlyphIndex(mark);
-    if (info.GlyphIndex == 0) {
-        if (!__alternativeChar(mark)) {
-            return false;
-        }
-        info.GlyphIndex = font_.CharToGlyphIndex(mark);
-        if (info.GlyphIndex == 0) {
-            return false;
-        }
+    glyphInfo info = {};
+    PinyinComponentGlyph component = {};
+    if (!components_ || components_->ResolveMark(mark, component) != kOk) {
+        return ComposeFailure::Component;
     }
 
-    const OpenType_GlyphHeader *glyph = NULL;
-    font_.Glyph(info.GlyphIndex, &glyph);
-    info.BBox.XMin = glyph->XMin;
-    info.BBox.YMin = glyph->YMin;
-    info.BBox.XMax = glyph->XMax;
-    info.BBox.YMax = glyph->YMax;
-    info.OffsetX = hCenter - (glyph->XMax - glyph->XMin) / 2 - glyph->XMin;
-    info.OffsetY = y - glyph->YMin;
-    info.AdvanceWidth = glyph->XMax - glyph->XMin;
+    info.GlyphIndex = component.GlyphIndex;
+    info.BBox.XMin = component.Bounds.XMin;
+    info.BBox.YMin = component.Bounds.YMin;
+    info.BBox.XMax = component.Bounds.XMax;
+    info.BBox.YMax = component.Bounds.YMax;
+    info.OffsetX = hCenter - (component.Bounds.XMax - component.Bounds.XMin) / 2 -
+        component.Bounds.XMin;
+    info.OffsetY = y - component.Bounds.YMin;
+    info.AdvanceWidth = component.Bounds.XMax - component.Bounds.XMin;
     glyphs.push_back(info);
-    markHeight = glyph->YMax - glyph->YMin;
-    return true;
+    markHeight = component.Bounds.YMax - component.Bounds.YMin;
+    usedGeneratedMark_ = usedGeneratedMark_ || component.Generated;
+    return ComposeFailure::None;
 }
 
 Status PinyinFontBuilder::__updateCmap()

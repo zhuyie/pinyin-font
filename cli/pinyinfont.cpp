@@ -98,6 +98,20 @@ static int buildFont(const char *filename, const char *dbFile, const char *outpu
     std::fprintf(stdout, "  GlyphCountOld = %d\n", (int)glyphCountOld);
     std::fprintf(stdout, "          AddOK = %d\n", (int)glyphCountAddOK);
     std::fprintf(stdout, "      AddFailed = %d\n", (int)glyphCountAddFailed);
+    const PinyinSynthesisStats &synthesisStats = builder.GetSynthesisStats();
+    std::fprintf(stdout, " SourceHanMissing = %u\n", synthesisStats.SourceHanMissing);
+    std::fprintf(stdout, " SourceOnlyGenerated = %u\n", synthesisStats.SourceOnlyGenerated);
+    std::fprintf(stdout, " ToneFallbackGenerated = %u\n", synthesisStats.ToneFallbackGenerated);
+    std::fprintf(stdout, " DotlessIGenerated = %u\n", synthesisStats.DotlessIGenerated);
+    std::fprintf(stdout, " ComponentFailed = %u\n", synthesisStats.ComponentFailed);
+    std::fprintf(stdout, " DotlessIFailed = %u\n", synthesisStats.DotlessIFailed);
+    std::fprintf(stdout, " OtherFailed = %u\n", synthesisStats.OtherFailed);
+    PinyinComponentStats componentStats;
+    builder.GetComponentStats(componentStats);
+    std::fprintf(stdout, " InternalComponents = macron:%u acute:%u caron:%u grave:%u diaeresis:%u dotless-i:%u\n",
+        componentStats.MacronUses, componentStats.AcuteUses,
+        componentStats.CaronUses, componentStats.GraveUses,
+        componentStats.DiaeresisUses, componentStats.DotlessIUses);
     std::fprintf(stdout, "      ParseTime = %.2fms\n", parseTime / 1000.0);
     std::fprintf(stdout, "  SynthesisTime = %.2fms\n", synthesisTime / 1000.0);
     std::fprintf(stdout, "      WriteTime = %.2fms\n", writeTime / 1000.0);
