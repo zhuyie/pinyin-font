@@ -1,30 +1,16 @@
 #include "ot_font_parser.h"
-#include "ot_font_writer.h"
 #include "scope_guard.h"
 #include "utility.h"
 #include <algorithm>
 #include <cassert>
-#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <functional>
 #include <set>
 #include <string>
 #include <vector>
-using namespace std::chrono;
-
-#ifdef _WIN32
-  #define WIN32_LEAN_AND_MEAN
-  #include <windows.h>
-#else
-  #include <dirent.h>
-  #include <sys/stat.h>
-  #include <sys/types.h>
-  #include <unistd.h>
-#endif
 
 //------------------------------------------------------------------------------
 
@@ -40,8 +26,6 @@ static void printUsage(const char *program)
     std::fprintf(stdout, "usage:\n");
     std::fprintf(stdout, "  %s info --input <font.ttf>\n", program);
     std::fprintf(stdout, "  %s integrity --source <original.ttf> --input <generated.ttf>\n", program);
-    std::fprintf(stdout, "  %s bench-parse --input <font-directory>\n", program);
-    std::fprintf(stdout, "  %s rewrite --input <font.ttf> [--output <out.ttf>]\n", program);
     std::fprintf(stdout, "  %s table-dump --input <font.ttf> --table <tag> [--output <file.dat>]\n", program);
     std::fprintf(stdout, "  %s table-purge --input <font.ttf> --table <tag> [--output <out.ttf>]\n", program);
 }
@@ -99,16 +83,6 @@ static bool requireTable(const Options &options)
         return false;
     }
     return true;
-}
-
-static std::string defaultRewriteOutput(const std::string &fileName)
-{
-    std::string output = fileName;
-    if (output.length() > 4 && output[output.size() - 4] == '.') {
-        output.resize(output.length() - 4);
-    }
-    output += ".rewrite.ttf";
-    return output;
 }
 
 static std::string defaultTableDumpOutput(const std::string &fileName, const std::string &tableName)
@@ -554,140 +528,6 @@ static int checkGeneratedFontIntegrity(const char *sourceFile, const char *gener
 
 //------------------------------------------------------------------------------
 
-#ifdef _WIN32
-static bool walkDir(std::string dir, std::function<void(const char*)> fun)
-{
-    std::string searchPath = dir + "\\*";
-    WIN32_FIND_DATAA ffd;
-    HANDLE hFind = FindFirstFileA(searchPath.c_str(), &ffd);
-    if (hFind == INVALID_HANDLE_VALUE)
-        return false;
-
-    do {
-        if (ffd.cFileName[0] == '.' && ffd.cFileName[1] == '\0')
-            continue;
-        if (ffd.cFileName[0] == '.' && ffd.cFileName[1] == '.' && ffd.cFileName[2] == '\0')
-            continue;
-
-        std::string fullpath = dir + "\\" + ffd.cFileName;
-
-        if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            walkDir(fullpath, fun);
-        } else {
-            size_t len = std::strlen(ffd.cFileName);
-            if (len > 4 && _stricmp(&ffd.cFileName[len - 4], ".ttf") == 0) {
-                fun(fullpath.c_str());
-            }
-        }
-    } while (FindNextFile(hFind, &ffd) != 0);
-
-    FindClose(hFind);
-    return true;
-}
-#else
-static bool walkDir(std::string dir, std::function<void(const char*)> fun)
-{
-    DIR *d = opendir(dir.c_str());
-    if (d == nullptr)
-        return false;
-
-    struct dirent *entry;
-    while ((entry = readdir(d))) {
-        if (entry->d_name[0] == '.' && entry->d_name[1] == '\0')
-            continue;
-        if (entry->d_name[0] == '.' && entry->d_name[1] == '.' && entry->d_name[2] == '\0')
-            continue;
-
-        std::string fullpath = dir + "/" + entry->d_name;
-
-        struct stat st = { 0 };
-        stat(fullpath.c_str(), &st);
-        if (S_ISDIR(st.st_mode)) {
-            walkDir(fullpath, fun);
-        } else {
-            size_t len = std::strlen(entry->d_name);
-            if (len > 4 && strcasecmp(&entry->d_name[len - 4], ".ttf") == 0) {
-                fun(fullpath.c_str());
-            }
-        }
-    }
-
-    closedir(d);
-    return true;
-}
-#endif
-
-static int benchParse(const char *path)
-{
-    int totalFile = 0, failedFile = 0;
-    long long totalTime = 0, minTime = -1, maxTime = -1;
-    walkDir(path, [&](const char *filename) {
-        std::fprintf(stdout, "%s\n", filename);
-        totalFile++;
-
-        OpenType_Font font;
-        OpenType_Font_Parser parser;
-
-        auto start = system_clock::now();
-        Status status = parser.Parse(filename, &font);
-        if (status != kOk) {
-            std::fprintf(stdout, "  Parse failed, error=%d\n", status);
-            failedFile++;
-            return;
-        }
-        auto elapsedTime = duration_cast<microseconds>(system_clock::now() - start);
-        std::fprintf(stdout, "  Parse succeeded, time=%.2fms\n", elapsedTime.count() / 1000.0);
-        totalTime += elapsedTime.count();
-        if (minTime == -1 || elapsedTime.count() < minTime) {
-            minTime = elapsedTime.count();
-        }
-        if (maxTime == -1 || elapsedTime.count() > maxTime) {
-            maxTime = elapsedTime.count();
-        }
-    });
-    std::fprintf(stdout, "\n");
-    std::fprintf(stdout, "totalFile = %d, failedFile = %d\n", totalFile, failedFile);
-    if (totalFile > failedFile) {
-        std::fprintf(stdout, "ParseTime: avg=%.2fms, min=%.2fms, max=%.2fms\n",
-            totalTime / 1000.0 / (totalFile - failedFile),
-            minTime / 1000.0,
-            maxTime / 1000.0);
-    }
-    std::fprintf(stdout, "\n");
-    return 0;
-}
-
-static int rewriteFont(const char *filename, const char *outputFile)
-{
-    OpenType_Font font;
-
-    OpenType_Font_Parser parser;
-    Status status = parser.Parse(filename, &font);
-    if (status != kOk) {
-        std::fprintf(stderr, "Parse failed, error=%d\n", status);
-        return 1;
-    }
-    std::fprintf(stdout, "Parse succeeded\n");
-
-    std::string derivedOutput;
-    if (outputFile == nullptr) {
-        derivedOutput = defaultRewriteOutput(filename);
-        outputFile = derivedOutput.c_str();
-    }
-
-    OpenType_Font_Writer writer;
-    status = writer.Write(outputFile, &font);
-    if (status != kOk) {
-        std::fprintf(stderr, "Write failed, error=%d\n", status);
-        return 1;
-    }
-    std::fprintf(stdout, "Rewrite succeeded, outfile = %s\n", outputFile);
-    std::fprintf(stdout, "\n");
-    return 0;
-}
-
-//------------------------------------------------------------------------------
-
 static bool readWholeFile(FILE *f, std::vector<uint8_t> &data)
 {
     fseek(f, 0, SEEK_END);
@@ -950,15 +790,6 @@ int main(int argc, char *argv[])
     if (std::strcmp(command, "integrity") == 0) {
         if (!requireSource(options) || !requireInput(options)) return 1;
         return checkGeneratedFontIntegrity(options.source.c_str(), options.input.c_str());
-    }
-    if (std::strcmp(command, "bench-parse") == 0) {
-        if (!requireInput(options)) return 1;
-        return benchParse(options.input.c_str());
-    }
-    if (std::strcmp(command, "rewrite") == 0) {
-        if (!requireInput(options)) return 1;
-        const char *output = options.output.empty() ? nullptr : options.output.c_str();
-        return rewriteFont(options.input.c_str(), output);
     }
     if (std::strcmp(command, "table-dump") == 0 || std::strcmp(command, "table-purge") == 0) {
         if (!requireInput(options) || !requireTable(options)) return 1;

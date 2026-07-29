@@ -39,12 +39,22 @@ Developer diagnostics live in `font_tool`:
 
 ```sh
 build/font_tool info --input <font.ttf>
-build/font_tool bench-parse --input <font-directory>
-build/font_tool rewrite --input <font.ttf> [--output <out.ttf>]
 build/font_tool table-dump --input <font.ttf> --table <tag> [--output <file.dat>]
 build/font_tool table-purge --input <font.ttf> --table <tag> [--output <out.ttf>]
 build/font_tool integrity --source <original.ttf> --input <generated.ttf>
 ```
+
+Use `info` to inspect a font's core tables, names, representative glyphs and
+metrics, and selected cmap mappings.
+
+Use `table-dump` to extract a table's raw bytes. If `--output` is omitted, the
+default path is `<font.ttf>.<tag>.dat` (`OS/2` is written as `OS2` in the
+filename).
+
+Use `table-purge` to write a copy of the font without the selected table. It
+updates the table directory and font checksum; the required `head` table cannot
+be removed. If `--output` is omitted, the default path is
+`<font.ttf>.purged.ttf`.
 
 Use `integrity` after generating a font to compare it with its source. The
 report checks source cmap preservation and the metrics, bounds, component

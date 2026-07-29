@@ -65,20 +65,12 @@ The project SHALL provide a dedicated CLI entry point outside internal source mo
 The project SHALL keep development-only utilities separate from the user-facing CLI and internal implementation modules.
 
 #### Scenario: Font diagnostics are unified
-- **WHEN** font inspection, parser benchmarking, rewrite roundtrip, table dump, or table purge behavior is needed
+- **WHEN** font inspection, generated-font integrity checks, table dump, or table purge behavior is needed
 - **THEN** it is exposed through a unified `font_tool` executable under `tools/`
 
 #### Scenario: Font info command exists
 - **WHEN** a developer runs `font_tool info --input <font.ttf>`
 - **THEN** the tool prints font summary information equivalent to the previous CLI dump behavior
-
-#### Scenario: Font parser benchmark command exists
-- **WHEN** a developer runs `font_tool bench-parse --input <font-directory>`
-- **THEN** the tool benchmarks parsing of `.ttf` files under the directory
-
-#### Scenario: Font rewrite command exists
-- **WHEN** a developer runs `font_tool rewrite --input <font.ttf>`
-- **THEN** the tool performs a parse/write roundtrip and writes either the specified `--output` path or a derived rewrite output path
 
 #### Scenario: Font table dump command exists
 - **WHEN** a developer runs `font_tool table-dump --input <font.ttf> --table <tag>`
