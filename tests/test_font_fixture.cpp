@@ -52,7 +52,10 @@ Status OpenType_TestFontFixture::Write(
     const std::set<uint32_t> &extraCharacters,
     const std::set<uint32_t> &toneMarks,
     bool useSimpleI,
-    bool useCompositeI)
+    bool useCompositeI,
+    const std::set<uint32_t> &compositeCharacters,
+    const std::set<uint32_t> &emptyCharacters,
+    const std::map<uint32_t, uint32_t> &sharedMappings)
 {
     OpenType_Font font;
     OpenType_Font::Builder builder(font);
@@ -74,17 +77,35 @@ Status OpenType_TestFontFixture::Write(
     characters.insert(toneMarks.begin(), toneMarks.end());
 
     uint16_t lowercaseLGlyphIndex = 0;
+    std::map<uint32_t, uint16_t> mappedGlyphs;
     for (std::set<uint32_t>::const_iterator it = characters.begin();
          it != characters.end(); ++it) {
         uint32_t c = *it;
         if (c == 'i' && useCompositeI) continue;
-        OpenType_GlyphSimple glyph =
-            c == 'i' && useSimpleI ? simpleI() :
-            rectangle(c >= 0x300 && c <= 0x36F ? 180 : 500,
-                      c >= 0x300 && c <= 0x36F ? 100 : 500);
-        status = builder.AddMappedSimpleGlyph(
-            c, glyph, metric, "", glyphIndex);
+        if (compositeCharacters.find(c) != compositeCharacters.end()) {
+            if (lowercaseLGlyphIndex == 0) return kError;
+            OpenType_GlyphComposite glyph = {};
+            glyph.NumberOfContours = -1;
+            glyph.XMin = glyph.YMin = 0;
+            glyph.XMax = glyph.YMax = 500;
+            OpenType_GlyphComponent component = {};
+            component.Flags = OpenType_FlagArgsAreXYValues;
+            component.GlyphIndex = lowercaseLGlyphIndex;
+            glyph.SubGlyphs.push_back(component);
+            status = builder.AddMappedCompositeGlyph(
+                c, glyph, metric, "", glyphIndex);
+        } else {
+            OpenType_GlyphSimple glyph =
+                emptyCharacters.find(c) != emptyCharacters.end()
+                    ? OpenType_GlyphSimple()
+                    : c == 'i' && useSimpleI ? simpleI() :
+                    rectangle(c >= 0x300 && c <= 0x36F ? 180 : 500,
+                              c >= 0x300 && c <= 0x36F ? 100 : 500);
+            status = builder.AddMappedSimpleGlyph(
+                c, glyph, metric, "", glyphIndex);
+        }
         if (status != kOk) return status;
+        mappedGlyphs[c] = glyphIndex;
         if (c == 'l') lowercaseLGlyphIndex = glyphIndex;
     }
 
@@ -102,10 +123,42 @@ Status OpenType_TestFontFixture::Write(
         status = builder.AddMappedCompositeGlyph(
             'i', composite, metric, "", glyphIndex);
         if (status != kOk) return status;
+        mappedGlyphs['i'] = glyphIndex;
     }
 
     status = builder.Finish();
     if (status != kOk) return status;
+
+    if (!sharedMappings.empty()) {
+        std::map<uint32_t, uint16_t> mappings;
+        const std::vector<CmapSequentialMapGroup> &groups = font.CmapGroups();
+        for (size_t i = 0; i < groups.size(); i++) {
+            const CmapSequentialMapGroup &group = groups[i];
+            for (uint32_t c = group.startCharCode; c <= group.endCharCode; c++) {
+                mappings[c] = (uint16_t)(
+                    group.startGlyphID + c - group.startCharCode);
+                if (c == 0xFFFFFFFFu) break;
+            }
+        }
+        for (std::map<uint32_t, uint32_t>::const_iterator
+                 it = sharedMappings.begin(); it != sharedMappings.end(); ++it) {
+            std::map<uint32_t, uint16_t>::const_iterator source =
+                mappedGlyphs.find(it->second);
+            if (source == mappedGlyphs.end()) return kInvalidArgs;
+            mappings[it->first] = source->second;
+        }
+
+        std::vector<CmapSequentialMapGroup> replacement;
+        for (std::map<uint32_t, uint16_t>::const_iterator it = mappings.begin();
+             it != mappings.end(); ++it) {
+            CmapSequentialMapGroup group = {
+                it->first, it->first, it->second
+            };
+            replacement.push_back(group);
+        }
+        status = font.SetCmap(replacement);
+        if (status != kOk) return status;
+    }
 
     OpenType_Font_Writer writer;
     return writer.Write(path, &font);

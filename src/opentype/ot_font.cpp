@@ -1,6 +1,8 @@
 #include "ot_font.h"
 #include "mac_glyph_names.h"
+#include <algorithm>
 #include <cassert>
+#include <functional>
 
 //------------------------------------------------------------------------------
 
@@ -128,6 +130,40 @@ Status OpenType_Font::AddGlyph(
         return kError;
     }
 
+    int appendedCompositeDepth = 0;
+    if (glyph->NumberOfContours < 0) {
+        const OpenType_GlyphComposite *source =
+            (const OpenType_GlyphComposite*)glyph;
+        std::vector<uint8_t> visiting(glyphs_.size(), 0);
+        std::function<int(uint16_t)> depth = [&](uint16_t index) -> int {
+            if (index >= glyphs_.size() || visiting[index]) return -1;
+            const OpenType_GlyphHeader *component = glyphs_[index];
+            if (component == NULL || component->NumberOfContours >= 0) return 0;
+            visiting[index] = 1;
+            const OpenType_GlyphComposite *composite =
+                (const OpenType_GlyphComposite*)component;
+            int result = 1;
+            for (size_t i = 0; i < composite->SubGlyphs.size(); i++) {
+                int childDepth = depth(composite->SubGlyphs[i].GlyphIndex);
+                if (childDepth < 0) {
+                    visiting[index] = 0;
+                    return -1;
+                }
+                result = std::max(result, 1 + childDepth);
+            }
+            visiting[index] = 0;
+            return result;
+        };
+
+        appendedCompositeDepth = 1;
+        for (size_t i = 0; i < source->SubGlyphs.size(); i++) {
+            int childDepth = depth(source->SubGlyphs[i].GlyphIndex);
+            if (childDepth < 0) return kError;
+            appendedCompositeDepth =
+                std::max(appendedCompositeDepth, 1 + childDepth);
+        }
+    }
+
     OpenType_GlyphHeader *newGlyph = NULL;
     if (glyph->NumberOfContours >= 0) {
         const OpenType_GlyphSimple *source = (const OpenType_GlyphSimple*)glyph;
@@ -189,8 +225,8 @@ Status OpenType_Font::AddGlyph(
         const OpenType_GlyphComposite *composite = (const OpenType_GlyphComposite*)newGlyph;
         if (composite->SubGlyphs.size() > maxp_.MaxComponentElements)
             maxp_.MaxComponentElements = (uint16_t)composite->SubGlyphs.size();
-        if (maxp_.MaxComponentDepth < 1)
-            maxp_.MaxComponentDepth = 1;
+        if (appendedCompositeDepth > maxp_.MaxComponentDepth)
+            maxp_.MaxComponentDepth = (uint16_t)appendedCompositeDepth;
     }
 
     assert(glyphs_.size() == hmtx_.size());
