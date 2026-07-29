@@ -2,8 +2,6 @@
 
 `pinyin-font` is a command-line tool for generating pinyin-annotated TrueType fonts.
 
-The project is organized around the CLI product, with the font processing code kept as internal implementation:
-
 ```text
 src/opentype/   OpenType parsing, writing, cmap, glyph, and table logic
 src/pinyin/     Pinyin database loading and normalization
@@ -21,8 +19,6 @@ cmake -S . -B build
 cmake --build build
 ```
 
-The main executable is `build/pinyinfont`. Development font diagnostics build as `build/font_tool`.
-
 ## Test
 
 ```sh
@@ -37,10 +33,6 @@ build/pinyinfont --input <font.ttf> --pinyin-db <pinyin-db.txt> [--output <out.t
 
 The pinyin database is required because it controls which pinyin readings are synthesized. If `--output` is omitted, the output path defaults to `<font.ttf>.pinyin.ttf`.
 
-```sh
-build/pinyinfont --input input.ttf --pinyin-db data/TGHZ2013.txt
-```
-
 ## Tools
 
 Developer diagnostics live in `font_tool`:
@@ -51,7 +43,13 @@ build/font_tool bench-parse --input <font-directory>
 build/font_tool rewrite --input <font.ttf> [--output <out.ttf>]
 build/font_tool table-dump --input <font.ttf> --table <tag> [--output <file.dat>]
 build/font_tool table-purge --input <font.ttf> --table <tag> [--output <out.ttf>]
+build/font_tool integrity --source <original.ttf> --input <generated.ttf>
 ```
+
+Use `integrity` after generating a font to compare it with its source. The
+report checks source cmap preservation and the metrics, bounds, component
+structure, instructions, cmap visibility, and `maxp` metadata of generated
+glyphs.
 
 Visual validation lives in the standalone browser page `tools/preview.html`.
 Open it directly, select the generated pinyin font, and optionally select the
