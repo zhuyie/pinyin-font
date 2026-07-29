@@ -179,7 +179,13 @@ Status OpenType_Font::AddGlyph(
     if (rsb < hhea_.MinRightSideBearing)
         hhea_.MinRightSideBearing = rsb;
 
-    if (newGlyph->NumberOfContours < 0) {
+    if (newGlyph->NumberOfContours >= 0) {
+        const OpenType_GlyphSimple *simple = (const OpenType_GlyphSimple*)newGlyph;
+        if (simple->Points.size() > maxp_.MaxPoints)
+            maxp_.MaxPoints = (uint16_t)simple->Points.size();
+        if (simple->EndPtsOfContours.size() > maxp_.MaxContours)
+            maxp_.MaxContours = (uint16_t)simple->EndPtsOfContours.size();
+    } else {
         const OpenType_GlyphComposite *composite = (const OpenType_GlyphComposite*)newGlyph;
         if (composite->SubGlyphs.size() > maxp_.MaxComponentElements)
             maxp_.MaxComponentElements = (uint16_t)composite->SubGlyphs.size();

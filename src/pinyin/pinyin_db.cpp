@@ -181,6 +181,11 @@ void PinyinDB::__normalize(std::wstring &pinyin)
         { L"\x01D8", L"u\x0308\x0301" },  // ǘ
         { L"\x01DA", L"u\x0308\x030C" },  // ǚ
         { L"\x01DC", L"u\x0308\x0300" },  // ǜ
+
+        { L"\x1E3F", L"m\x0301" },  // ḿ
+        { L"\x0144", L"n\x0301" },  // ń
+        { L"\x0148", L"n\x030C" },  // ň
+        { L"\x01F9", L"n\x0300" },  // ǹ
     };
     static const int dcount = sizeof(d) / sizeof(d[0]);
 

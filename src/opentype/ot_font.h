@@ -242,6 +242,8 @@ class OpenType_Font
     friend class OpenType_Font_Writer;
 
 public:
+    class Builder;
+
     OpenType_Font();
     ~OpenType_Font();
 
