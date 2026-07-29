@@ -323,6 +323,27 @@
             font-size: 14px;
         }
 
+        .size-matrix {
+            display: grid;
+            gap: 10px;
+        }
+
+        .size-sample {
+            display: grid;
+            grid-template-columns: 54px minmax(0, 1fr);
+            gap: 12px;
+            align-items: baseline;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .size-label {
+            color: var(--muted);
+            font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+
         @media (max-width: 860px) {
             main {
                 width: min(100% - 20px, 720px);
@@ -451,6 +472,46 @@
                         <div class="glyph-original original-font">绿</div>
                         <div class="glyph-name">lu</div>
                     </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">妈</div>
+                        <div class="glyph-original original-font">妈</div>
+                        <div class="glyph-name">mā · macron</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">麻</div>
+                        <div class="glyph-original original-font">麻</div>
+                        <div class="glyph-name">má · acute</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">马</div>
+                        <div class="glyph-original original-font">马</div>
+                        <div class="glyph-name">mǎ · caron</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">骂</div>
+                        <div class="glyph-original original-font">骂</div>
+                        <div class="glyph-name">mà · grave</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">女</div>
+                        <div class="glyph-original original-font">女</div>
+                        <div class="glyph-name">nǚ · diaeresis + caron</div>
+                    </div>
+                    <div class="glyph-card">
+                        <div class="glyph-main pinyin-font">米</div>
+                        <div class="glyph-original original-font">米</div>
+                        <div class="glyph-name">mǐ · dotless i + caron</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel section">
+                <h2>多字号组件检查</h2>
+                <div class="size-matrix">
+                    <div class="size-sample"><span class="size-label">24px</span><span class="pinyin-font" style="font-size:24px">妈麻马骂女绿米地</span></div>
+                    <div class="size-sample"><span class="size-label">48px</span><span class="pinyin-font" style="font-size:48px">妈麻马骂女绿米地</span></div>
+                    <div class="size-sample"><span class="size-label">72px</span><span class="pinyin-font" style="font-size:72px">妈麻马骂女绿米地</span></div>
+                    <div class="size-sample"><span class="size-label">120px</span><span class="pinyin-font" style="font-size:120px">妈麻马骂女绿米地</span></div>
                 </div>
             </section>
 
