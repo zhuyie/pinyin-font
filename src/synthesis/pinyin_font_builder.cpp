@@ -69,6 +69,11 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const char *outputFont, 
         return status;
     }
 
+    status = __addScaledPunctuationGlyphs();
+    if (status != kOk) {
+        return status;
+    }
+
     status = __addPinyinGlyphs(pinyinDB);
     if (status != kOk) {
         return status;
@@ -262,6 +267,139 @@ Status PinyinFontBuilder::__retainSourceCmap()
                 break;
             }
         }
+    }
+    return kOk;
+}
+
+static const uint32_t commonPunctuation[] = {
+    // Half-width punctuation.
+    0x0021, // !
+    0x0022, // "
+    0x0027, // '
+    0x0028, // (
+    0x0029, // )
+    0x002C, // ,
+    0x002D, // -
+    0x002E, // .
+    0x003A, // :
+    0x003B, // ;
+    0x003F, // ?
+    0x005B, // [
+    0x005D, // ]
+    0x007B, // {
+    0x007D, // }
+
+    // Typographic punctuation.
+    0x00B7, // ·
+    0x2013, // –
+    0x2014, // —
+    0x2018, // ‘
+    0x2019, // ’
+    0x201C, // “
+    0x201D, // ”
+    0x2026, // …
+
+    // CJK punctuation.
+    0x3001, // 、
+    0x3002, // 。
+    0x3008, // 〈
+    0x3009, // 〉
+    0x300A, // 《
+    0x300B, // 》
+    0x300C, // 「
+    0x300D, // 」
+    0x300E, // 『
+    0x300F, // 』
+    0x3010, // 【
+    0x3011, // 】
+    0x3014, // 〔
+    0x3015, // 〕
+    0x30FB, // ・
+
+    // Full-width counterparts.
+    0xFF01, // ！
+    0xFF02, // ＂
+    0xFF07, // ＇
+    0xFF08, // （
+    0xFF09, // ）
+    0xFF0C, // ，
+    0xFF0D, // －
+    0xFF0E, // ．
+    0xFF1A, // ：
+    0xFF1B, // ；
+    0xFF1F, // ？
+    0xFF3B, // ［
+    0xFF3D, // ］
+    0xFF5B, // ｛
+    0xFF5D, // ｝
+};
+
+bool PinyinFontBuilder::__hasOutline(const OpenType_GlyphHeader *glyph) const
+{
+    if (glyph == NULL) return false;
+    if (glyph->NumberOfContours >= 0) {
+        const OpenType_GlyphSimple *simple =
+            (const OpenType_GlyphSimple*)glyph;
+        return !simple->Points.empty();
+    }
+    const OpenType_GlyphComposite *composite =
+        (const OpenType_GlyphComposite*)glyph;
+    return !composite->SubGlyphs.empty();
+}
+
+Status PinyinFontBuilder::__addScaledPunctuationGlyphs()
+{
+    std::map<uint16_t, uint16_t> wrappers;
+    size_t count = sizeof(commonPunctuation) / sizeof(commonPunctuation[0]);
+    for (size_t i = 0; i < count; i++) {
+        uint32_t charcode = commonPunctuation[i];
+        uint16_t sourceGlyphIndex = font_.CharToGlyphIndex(charcode);
+        if (sourceGlyphIndex == 0) continue;
+
+        std::map<uint16_t, uint16_t>::const_iterator cached =
+            wrappers.find(sourceGlyphIndex);
+        if (cached != wrappers.end()) {
+            char2index_[charcode] = cached->second;
+            continue;
+        }
+
+        const OpenType_GlyphHeader *sourceGlyph = NULL;
+        if (font_.Glyph(sourceGlyphIndex, &sourceGlyph) != kOk ||
+            !__hasOutline(sourceGlyph)) {
+            continue;
+        }
+
+        OpenType_LongHorMetric metric = { 0 };
+        if (font_.GlyphHorMetric(sourceGlyphIndex, metric) != kOk) {
+            continue;
+        }
+
+        boundingBox bbox = {
+            sourceGlyph->XMin, sourceGlyph->YMin,
+            sourceGlyph->XMax, sourceGlyph->YMax
+        };
+        OpenType_GlyphComposite glyph = {};
+        glyph.NumberOfContours = -1;
+        int16_t dx =
+            (int16_t)(metric.AdvanceWidth * (1.0 - baseRatio_) / 2);
+        __addSubGlyph(
+            glyph, sourceGlyphIndex, bbox, baseRatio_, dx, baseDY_, true);
+
+        char nameBuf[24] = { 0 };
+        snprintf(
+            nameBuf, sizeof(nameBuf), "uni%04X_punct",
+            (unsigned int)charcode);
+        OpenType_GlyphName name;
+        name.ID = 258;
+        name.Str = nameBuf;
+        metric.LSB = glyph.XMin;
+
+        uint16_t glyphIndex = 0;
+        if (font_.AddGlyph(&glyph, &metric, name, glyphIndex) != kOk) {
+            continue;
+        }
+        wrappers[sourceGlyphIndex] = glyphIndex;
+        char2index_[charcode] = glyphIndex;
     }
     return kOk;
 }

@@ -295,11 +295,58 @@ static bool isGeneratedGlyph(const OpenType_Font &source, uint16_t glyphID)
     return glyphID >= (uint16_t)source.GlyphCount();
 }
 
+enum class GeneratedReplacementKind {
+    Invalid,
+    Pinyin,
+    Punctuation,
+};
+
+static GeneratedReplacementKind generatedReplacementKind(
+    const OpenType_Font &source,
+    const OpenType_Font &generated,
+    uint16_t sourceGlyphID,
+    uint16_t generatedGlyphID)
+{
+    if (!isGeneratedGlyph(source, generatedGlyphID)) {
+        return GeneratedReplacementKind::Invalid;
+    }
+    const OpenType_GlyphHeader *header = nullptr;
+    if (generated.Glyph(generatedGlyphID, &header) != kOk ||
+        header == nullptr || header->NumberOfContours >= 0) {
+        return GeneratedReplacementKind::Invalid;
+    }
+    const OpenType_GlyphComposite *composite =
+        (const OpenType_GlyphComposite*)header;
+    bool referencesSource = false;
+    for (size_t i = 0; i < composite->SubGlyphs.size(); i++) {
+        referencesSource =
+            referencesSource ||
+            composite->SubGlyphs[i].GlyphIndex == sourceGlyphID;
+    }
+    if (!referencesSource) {
+        return GeneratedReplacementKind::Invalid;
+    }
+
+    std::string name;
+    generated.GlyphName(generatedGlyphID, name);
+    if (name.size() >= 5 &&
+        name.compare(name.size() - 5, 5, "_py00") == 0) {
+        return GeneratedReplacementKind::Pinyin;
+    }
+    if (name.size() >= 6 &&
+        name.compare(name.size() - 6, 6, "_punct") == 0 &&
+        composite->SubGlyphs.size() == 1) {
+        return GeneratedReplacementKind::Punctuation;
+    }
+    return GeneratedReplacementKind::Invalid;
+}
+
 static void checkCmapIntegrity(const OpenType_Font &source, const OpenType_Font &generated)
 {
     int total = 0;
     int preserved = 0;
-    int generatedReplacement = 0;
+    int pinyinReplacements = 0;
+    int punctuationReplacements = 0;
     int dropped = 0;
     int unexpectedChanged = 0;
 
@@ -315,10 +362,16 @@ static void checkCmapIntegrity(const OpenType_Font &source, const OpenType_Font 
                     dropped++;
                 } else if (generatedGlyphID == sourceGlyphID) {
                     preserved++;
-                } else if (isGeneratedGlyph(source, generatedGlyphID)) {
-                    generatedReplacement++;
                 } else {
-                    unexpectedChanged++;
+                    GeneratedReplacementKind kind = generatedReplacementKind(
+                        source, generated, sourceGlyphID, generatedGlyphID);
+                    if (kind == GeneratedReplacementKind::Pinyin) {
+                        pinyinReplacements++;
+                    } else if (kind == GeneratedReplacementKind::Punctuation) {
+                        punctuationReplacements++;
+                    } else {
+                        unexpectedChanged++;
+                    }
                 }
             }
             if (charcode == 0xFFFFFFFFu) {
@@ -330,7 +383,11 @@ static void checkCmapIntegrity(const OpenType_Font &source, const OpenType_Font 
     std::fprintf(stdout, "Cmap integrity:\n");
     std::fprintf(stdout, "  SourceMappings = %d\n", total);
     std::fprintf(stdout, "  Preserved = %d\n", preserved);
-    std::fprintf(stdout, "  GeneratedReplacements = %d\n", generatedReplacement);
+    std::fprintf(stdout, "  PinyinReplacements = %d\n", pinyinReplacements);
+    std::fprintf(stdout, "  ScaledPunctuationReplacements = %d\n",
+        punctuationReplacements);
+    std::fprintf(stdout, "  GeneratedReplacements = %d\n",
+        pinyinReplacements + punctuationReplacements);
     std::fprintf(stdout, "  Dropped = %d\n", dropped);
     std::fprintf(stdout, "  UnexpectedChanged = %d\n", unexpectedChanged);
     std::fprintf(stdout, "\n");

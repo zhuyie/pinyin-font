@@ -109,6 +109,8 @@ private:
     bool __isMarkChar(wchar_t c);
     void __buildSubstitutions();
     Status __retainSourceCmap();
+    Status __addScaledPunctuationGlyphs();
+    bool __hasOutline(const OpenType_GlyphHeader *glyph) const;
     Status __addPinyinGlyphs(const PinyinDB &pinyinDB);
     Status __addPinyinGlyph(
         uint32_t charcode,
