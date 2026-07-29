@@ -31,7 +31,20 @@ ctest --test-dir build --output-on-failure
 build/pinyinfont --input <font.ttf> --pinyin-db <pinyin-db.txt> [--output <out.ttf>]
 ```
 
-The pinyin database is required because it controls which pinyin readings are synthesized. If `--output` is omitted, the output path defaults to `<font.ttf>.pinyin.ttf`.
+The pinyin database is required because it controls which pinyin readings are
+synthesized. Its format comes from
+[`zhuyie/pinyin-db`](https://github.com/zhuyie/pinyin-db): UTF-8 text with one
+entry per line and three tab-separated fields — the character, its hexadecimal
+Unicode scalar value, and one or more comma-separated pinyin readings.
+
+```text
+三	4E09	sān
+上	4E0A	shàng,shǎng
+下	4E0B	xià
+```
+
+If `--output` is omitted, the output path defaults to
+`<font.ttf>.pinyin.ttf`.
 
 ## Tools
 
