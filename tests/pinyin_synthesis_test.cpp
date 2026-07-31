@@ -2,6 +2,7 @@
 #include "pinyin_db.h"
 #include "pinyin_font_builder.h"
 #include "test_font_fixture.h"
+#include "test_runner.h"
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
@@ -37,13 +38,9 @@ static bool writeDB(const std::string &path)
     return ok;
 }
 
-int main(int argc, char *argv[])
+PINYINFONT_TEST(pinyin_synthesis)
 {
-    if (argc != 2) {
-        std::fprintf(stderr, "usage: %s output-directory\n", argv[0]);
-        return 1;
-    }
-    std::string directory = argv[1];
+    std::string directory = context.FixtureDirectory;
     std::string sourcePath = directory + "/synthesis-fixture.ttf";
     std::string outputPath = directory + "/synthesis-generated.ttf";
     std::string databasePath = directory + "/synthesis-db.txt";

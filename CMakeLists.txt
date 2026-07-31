@@ -72,46 +72,20 @@ set(PINYINFONT_TEST_FIXTURE_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/test-fixtures")
 file(MAKE_DIRECTORY "${PINYINFONT_TEST_FIXTURE_DIR}")
 
-add_executable(pinyin_db_smoke
-    tests/pinyin_db_smoke.cpp)
-target_include_directories(pinyin_db_smoke
-    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS})
-target_link_libraries(pinyin_db_smoke
-    pinyinfont)
-add_test(
-    NAME pinyin_db_smoke
-    COMMAND pinyin_db_smoke "${PINYINFONT_TEST_FIXTURE_DIR}")
-
-add_executable(pinyin_components_test
+add_executable(pinyinfont_tests
+    tests/test_runner.cpp
+    tests/pinyin_db_smoke.cpp
     tests/pinyin_components_test.cpp
-    tests/test_font_fixture.cpp)
-target_include_directories(pinyin_components_test
-    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS})
-target_link_libraries(pinyin_components_test
-    pinyinfont)
-add_test(
-    NAME pinyin_components_test
-    COMMAND pinyin_components_test "${PINYINFONT_TEST_FIXTURE_DIR}")
-
-add_executable(pinyin_synthesis_test
     tests/pinyin_synthesis_test.cpp
-    tests/test_font_fixture.cpp)
-target_include_directories(pinyin_synthesis_test
-    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/tests")
-target_link_libraries(pinyin_synthesis_test
-    pinyinfont)
-add_test(
-    NAME pinyin_synthesis_test
-    COMMAND pinyin_synthesis_test "${PINYINFONT_TEST_FIXTURE_DIR}")
-
-add_executable(cmap_format4_test
     tests/cmap_format4_test.cpp
+    tests/test_font_fixture.cpp
     tools/cmap_integrity.cpp)
-target_include_directories(cmap_format4_test
+target_include_directories(pinyinfont_tests
     PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools")
-target_link_libraries(cmap_format4_test
+target_link_libraries(pinyinfont_tests
     pinyinfont)
 add_test(
-    NAME cmap_format4_test
-    COMMAND cmap_format4_test)
+    NAME pinyinfont_tests
+    COMMAND pinyinfont_tests "${PINYINFONT_TEST_FIXTURE_DIR}")

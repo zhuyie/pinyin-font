@@ -1,4 +1,5 @@
 #include "pinyin_db.h"
+#include "test_runner.h"
 #include <cstdio>
 #include <string>
 
@@ -15,14 +16,10 @@ static bool writeDB(const std::string &path)
     return ok;
 }
 
-int main(int argc, char *argv[])
+PINYINFONT_TEST(pinyin_db)
 {
-    if (argc != 2) {
-        std::fprintf(stderr, "usage: %s output-directory\n", argv[0]);
-        return 1;
-    }
-
-    std::string databasePath = std::string(argv[1]) + "/pinyin-db-smoke.txt";
+    std::string databasePath =
+        std::string(context.FixtureDirectory) + "/pinyin-db-smoke.txt";
     if (!writeDB(databasePath)) {
         std::fprintf(stderr, "failed to create pinyin db fixture\n");
         return 1;

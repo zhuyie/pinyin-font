@@ -2,6 +2,7 @@
 #include "ot_font_parser.h"
 #include "ot_font_writer.h"
 #include "test_font_fixture.h"
+#include "test_runner.h"
 #include <cstdio>
 #include <set>
 #include <string>
@@ -39,12 +40,8 @@ static bool expect(bool condition, const char *message)
     return condition;
 }
 
-int main(int argc, char *argv[])
+PINYINFONT_TEST(pinyin_components)
 {
-    if (argc != 2) {
-        std::fprintf(stderr, "usage: %s output-directory\n", argv[0]);
-        return 1;
-    }
     OpenType_GlyphSimple simpleI = {};
     addRectangle(simpleI, 0, 0, 120, 500);
     addRectangle(simpleI, 20, 650, 100, 750);
@@ -85,8 +82,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::string sourcePath = std::string(argv[1]) + "/component-fixture.ttf";
-    std::string generatedPath = std::string(argv[1]) + "/component-generated.ttf";
+    std::string sourcePath =
+        std::string(context.FixtureDirectory) + "/component-fixture.ttf";
+    std::string generatedPath =
+        std::string(context.FixtureDirectory) + "/component-generated.ttf";
     std::set<uint32_t> noExtra;
     std::set<uint32_t> sourceMarks;
     sourceMarks.insert(0x0304);
@@ -177,7 +176,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::string compositePath = std::string(argv[1]) + "/component-composite-i.ttf";
+    std::string compositePath =
+        std::string(context.FixtureDirectory) + "/component-composite-i.ttf";
     if (!expect(OpenType_TestFontFixture::Write(
                     compositePath.c_str(), noExtra, noExtra, false, true) == kOk,
                 "failed to write composite-i fixture")) {

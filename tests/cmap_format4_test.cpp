@@ -1,6 +1,7 @@
 #include "ot_cmap.h"
 #include "cmap_integrity.h"
 #include "ot_cmap_encoder.h"
+#include "test_runner.h"
 #include "utility.h"
 #include <cstdio>
 #include <map>
@@ -84,7 +85,7 @@ static std::vector<CmapSequentialMapGroup> alternatingGroups(size_t count)
     return groups;
 }
 
-int main()
+PINYINFONT_TEST(cmap_format4)
 {
     bool ok = true;
 
