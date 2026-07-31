@@ -64,6 +64,10 @@ endif()
 
 enable_testing()
 
+set(PINYINFONT_TEST_FIXTURE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/test-fixtures")
+file(MAKE_DIRECTORY "${PINYINFONT_TEST_FIXTURE_DIR}")
+
 add_executable(pinyin_db_smoke
     tests/pinyin_db_smoke.cpp)
 target_include_directories(pinyin_db_smoke
@@ -83,7 +87,7 @@ target_link_libraries(pinyin_components_test
     pinyinfont)
 add_test(
     NAME pinyin_components_test
-    COMMAND pinyin_components_test "${CMAKE_CURRENT_BINARY_DIR}")
+    COMMAND pinyin_components_test "${PINYINFONT_TEST_FIXTURE_DIR}")
 
 add_executable(pinyin_synthesis_test
     tests/pinyin_synthesis_test.cpp
@@ -94,4 +98,4 @@ target_link_libraries(pinyin_synthesis_test
     pinyinfont)
 add_test(
     NAME pinyin_synthesis_test
-    COMMAND pinyin_synthesis_test "${CMAKE_CURRENT_BINARY_DIR}")
+    COMMAND pinyin_synthesis_test "${PINYINFONT_TEST_FIXTURE_DIR}")
