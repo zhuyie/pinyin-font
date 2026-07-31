@@ -28,6 +28,8 @@ add_library(pinyinfont
     src/opentype/ot_cmap_format4.cpp
     src/opentype/ot_cmap_format6.cpp
     src/opentype/ot_cmap_format12.cpp
+    src/opentype/ot_cmap_encoder.h
+    src/opentype/ot_cmap_encoder.cpp
     src/opentype/ot_font_writer.h
     src/opentype/ot_font_writer.cpp
     src/pinyin/pinyin_db.h
@@ -53,9 +55,11 @@ target_link_libraries(pinyinfont_cli
 set_target_properties(pinyinfont_cli PROPERTIES OUTPUT_NAME pinyinfont)
 
 add_executable(font_tool
-    tools/font_tool.cpp)
+    tools/font_tool.cpp
+    tools/cmap_integrity.cpp)
 target_include_directories(font_tool
-    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS})
+    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 target_link_libraries(font_tool
     pinyinfont)
 if (MSVC)
@@ -99,3 +103,15 @@ target_link_libraries(pinyin_synthesis_test
 add_test(
     NAME pinyin_synthesis_test
     COMMAND pinyin_synthesis_test "${PINYINFONT_TEST_FIXTURE_DIR}")
+
+add_executable(cmap_format4_test
+    tests/cmap_format4_test.cpp
+    tools/cmap_integrity.cpp)
+target_include_directories(cmap_format4_test
+    PRIVATE ${PINYINFONT_INTERNAL_INCLUDE_DIRS}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+target_link_libraries(cmap_format4_test
+    pinyinfont)
+add_test(
+    NAME cmap_format4_test
+    COMMAND cmap_format4_test)

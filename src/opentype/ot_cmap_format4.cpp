@@ -37,12 +37,30 @@ Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end, Cmap
         return kCorruption;
     }
     uint16_t length = u2(b);
+    if (length < 16) {
+        return kCorruption;
+    }
     const uint8_t *subtableEnd = start - 2 + length;  // 2B for `format`
     if (subtableEnd > end) {
         return kCorruption;
     }
     uint16_t segCountX2 = u2(b + 4);
+    if (segCountX2 == 0 || (segCountX2 & 1) != 0) {
+        return kCorruption;
+    }
     uint16_t segCount = segCountX2 / 2;
+    uint16_t entrySelector = u2(b + 8);
+    uint16_t expectedEntrySelector = 0;
+    while ((uint32_t(1) << (expectedEntrySelector + 1)) <= segCount) {
+        expectedEntrySelector++;
+    }
+    uint16_t expectedSearchRange =
+        (uint16_t)((uint32_t(1) << expectedEntrySelector) * 2);
+    if (u2(b + 6) != expectedSearchRange ||
+        entrySelector != expectedEntrySelector ||
+        u2(b + 10) != (uint16_t)(segCountX2 - expectedSearchRange)) {
+        return kCorruption;
+    }
     b += 12;
 
     segments_.resize(segCount);
@@ -53,7 +71,11 @@ Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end, Cmap
     for (uint16_t i = 0; i < segCount; i++) {
         segments_[i].endCode = u2(b + 2*i);
     }
-    b += 2*segCount + 2;
+    b += 2*segCount;
+    if (u2(b) != 0) {
+        return kCorruption;
+    }
+    b += 2;
     for (uint16_t i = 0; i < segCount; i++) {
         segments_[i].startCode = u2(b + 2*i);
     }
@@ -71,12 +93,37 @@ Status CmapSubtableFormat4::Parse(const uint8_t *start, const uint8_t *end, Cmap
         if (segments_[i].endCode < segments_[i].startCode) {
             return kCorruption;
         }
+        if (i > 0 && segments_[i - 1].endCode >= segments_[i].startCode) {
+            return kCorruption;
+        }
+        if ((segments_[i].idRangeOffset & 1) != 0) {
+            return kCorruption;
+        }
+    }
+    if (segments_.back().startCode != 0xFFFF ||
+        segments_.back().endCode != 0xFFFF) {
+        return kCorruption;
     }
 
     while (b + 2 <= subtableEnd) {
         uint16_t glyphId = u2(b);
         glyphIdArray_.push_back(glyphId);
         b += 2;
+    }
+    if (b != subtableEnd) {
+        return kCorruption;
+    }
+
+    for (size_t i = 0; i < segments_.size(); i++) {
+        const segment &seg = segments_[i];
+        if (seg.idRangeOffset == 0) continue;
+        int first = (int)(seg.idRangeOffset / 2) -
+            (int)(segments_.size() - i);
+        int last = first + (int)(seg.endCode - seg.startCode);
+        if (first < 0 || last < first ||
+            last >= (int)glyphIdArray_.size()) {
+            return kCorruption;
+        }
     }
 
     if (cb) {
