@@ -1,4 +1,5 @@
 #include "ot_font_writer.h"
+#include "ot_cmap_encoder.h"
 #include "scope_guard.h"
 #include "utility.h"
 #include <cmath>
@@ -746,24 +747,18 @@ Status OpenType_Font_Writer::__writeTableHmtx(uint16_t &tableIndex)
 
 Status OpenType_Font_Writer::__writeTableCmap(uint16_t &tableIndex)
 {
-    // Windows require a format4 subtable if a format12 subtable present.
-    uint16_t segCount = 1;
-    for (size_t i = 0; i < font_->char2index_.size() && segCount < 32767; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        if (group.startCharCode >= 65535)
-            break;
-        segCount++;
+    std::vector<uint8_t> format4;
+    Status status = EncodeCmapFormat4(font_->char2index_, format4);
+    if (status != kOk) {
+        return status;
     }
-    uint16_t entrySelector = (uint16_t)(std::floor(std::log2(segCount)));
-    uint16_t searchRange = (uint16_t)(std::exp2(entrySelector) * 2);
-    uint16_t rangeShift = (uint16_t)(segCount * 2 - searchRange);
-
-    uint32_t format4Len = 16 + 8 * segCount;
+    uint32_t format4Len = (uint32_t)format4.size();
     uint32_t format12Len = 16 + (uint32_t)font_->char2index_.size() * 12;
     uint32_t length = 20 + format4Len + format12Len;
+    uint32_t paddedLength = (length + 3) & ~uint32_t(3);
 
     size_t offset = buf_.size();
-    buf_.resize(offset + length);
+    buf_.resize(offset + paddedLength, 0);
     uint8_t *b = &(buf_[offset]);
     uint8_t *bstart = b;
 
@@ -779,43 +774,8 @@ Status OpenType_Font_Writer::__writeTableCmap(uint16_t &tableIndex)
     put_u4(b + 16, 20 + format4Len);
     b += 20;
 
-    put_u2(b + 0,  4);            // format 4
-    put_u2(b + 2,  format4Len);   // subtable length
-    put_u2(b + 4,  0);            // language
-    put_u2(b + 6,  segCount*2);   // segCountX2
-    put_u2(b + 8,  searchRange);  // searchRange
-    put_u2(b + 10, entrySelector);  // entrySelector
-    put_u2(b + 12, rangeShift);   // rangeShift
-    b += 14;
-    for (uint16_t i = 0; i < segCount - 1; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        uint16_t endCode = (group.endCharCode < 65535) ? (uint16_t)group.endCharCode : 65535;
-        put_u2(b, endCode);       // endCode[segCount-1]
-        b += 2;
-    }
-    put_u2(b + 0, 0xffff);        // final segment's endCode
-    put_u2(b + 2, 0);             // reservedPad
-    b += 4;
-    for (uint16_t i = 0; i < segCount - 1; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        uint16_t startCode = (uint16_t)group.startCharCode;
-        put_u2(b, startCode);     // startCode[segCount-1]
-        b += 2;
-    }
-    put_u2(b, 0xffff);            // final segment's startCode
-    b += 2;
-    for (uint16_t i = 0; i < segCount - 1; i++) {
-        const CmapSequentialMapGroup &group = font_->char2index_[i];
-        int16_t idDelta = (int16_t)(group.startGlyphID - group.startCharCode);
-        put_i2(b, idDelta);       // idDelta[segCount-1]
-        b += 2;
-    }
-    put_u2(b, 1);                 // final segment's idDelta
-    b += 2;
-    for (uint16_t i = 0; i < segCount; i++) {
-        put_u2(b, 0);             // idRangeOffset[segCount]
-        b += 2;
-    }
+    memcpy(b, &format4[0], format4Len);
+    b += format4Len;
 
     put_u2(b + 0,  12);           // format 12
     put_u2(b + 2,  0);            // reserved
@@ -833,7 +793,7 @@ Status OpenType_Font_Writer::__writeTableCmap(uint16_t &tableIndex)
 
     uint8_t *t = &(buf_[12 + tableIndex * 16]);
     memcpy(t, "cmap", 4);
-    put_u4(t + 4,  __checksum(bstart, length));
+    put_u4(t + 4,  __checksum(bstart, paddedLength));
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 

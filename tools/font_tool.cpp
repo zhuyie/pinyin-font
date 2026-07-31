@@ -1,4 +1,5 @@
 #include "ot_font_parser.h"
+#include "cmap_integrity.h"
 #include "scope_guard.h"
 #include "utility.h"
 #include <algorithm>
@@ -600,6 +601,25 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
 
 static int checkGeneratedFontIntegrity(const char *sourceFile, const char *generatedFile)
 {
+    CmapValidationReport cmapReport = {};
+    Status cmapStatus = ValidateFontCmapFile(generatedFile, &cmapReport);
+    std::fprintf(stdout, "Serialized cmap integrity:\n");
+    std::fprintf(stdout, "  UnicodeSubtables = %u\n",
+        (unsigned int)cmapReport.unicodeSubtables);
+    std::fprintf(stdout, "  Format4Subtables = %u\n",
+        (unsigned int)cmapReport.format4Subtables);
+    std::fprintf(stdout, "  Format12Subtables = %u\n",
+        (unsigned int)cmapReport.format12Subtables);
+    std::fprintf(stdout, "  BMPMismatches = %u\n",
+        (unsigned int)cmapReport.bmpMismatches);
+    std::fprintf(stdout, "  SubtablesOK = %s\n\n",
+        cmapStatus == kOk ? "yes" : "no");
+    if (cmapStatus != kOk) {
+        std::fprintf(stderr,
+            "Serialized cmap validation failed, error=%d\n", cmapStatus);
+        return 1;
+    }
+
     OpenType_Font source;
     OpenType_Font generated;
     if (parseFont(sourceFile, source) != 0) {
