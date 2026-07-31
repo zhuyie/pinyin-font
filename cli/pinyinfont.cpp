@@ -106,6 +106,14 @@ static int buildFont(const char *filename, const char *dbFile, const char *outpu
     std::fprintf(stdout, " ComponentFailed = %u\n", synthesisStats.ComponentFailed);
     std::fprintf(stdout, " DotlessIFailed = %u\n", synthesisStats.DotlessIFailed);
     std::fprintf(stdout, " OtherFailed = %u\n", synthesisStats.OtherFailed);
+    std::fprintf(stdout, " AlternateGlyphsGenerated = %u\n",
+        synthesisStats.AlternateGlyphsGenerated);
+    std::fprintf(stdout, " SelectorLigaturesGenerated = %u\n",
+        synthesisStats.SelectorLigaturesGenerated);
+    std::fprintf(stdout, " SelectorMissingInputOmissions = %u\n",
+        synthesisStats.SelectorMissingInputOmissions);
+    std::fprintf(stdout, " AlternateSynthesisOmissions = %u\n",
+        synthesisStats.AlternateSynthesisOmissions);
     PinyinComponentStats componentStats;
     builder.GetComponentStats(componentStats);
     std::fprintf(stdout, " InternalComponents = macron:%u acute:%u caron:%u grave:%u diaeresis:%u dotless-i:%u\n",

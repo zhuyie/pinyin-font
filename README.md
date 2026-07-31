@@ -46,6 +46,26 @@ Unicode scalar value, and one or more comma-separated pinyin readings.
 If `--output` is omitted, the output path defaults to
 `<font.ttf>.pinyin.ttf`.
 
+### Polyphonic reading selectors
+
+For a character with multiple database readings, append `@` and the one-based
+reading index to select a non-default annotation:
+
+```text
+藏	cáng,zàng
+
+收藏@1   selects cáng
+西藏@2   selects zàng
+```
+
+The generated font implements valid selectors with the standard OpenType
+`liga` feature. Supporting shaping engines consume the visible `@1` or `@2`
+suffix and display one annotated Han glyph. The selector remains part of the
+underlying text, so it is still present when copying, searching, or exposing
+the text to accessibility software. If standard ligatures are disabled, the
+renderer does not support GSUB, or the index is invalid, the suffix remains
+visible as literal text.
+
 ## Tools
 
 Developer diagnostics live in `font_tool`:
@@ -72,7 +92,8 @@ be removed. If `--output` is omitted, the default path is
 Use `integrity` after generating a font to compare it with its source. The
 report checks source cmap preservation and the metrics, bounds, component
 structure, instructions, cmap visibility, and `maxp` metadata of generated
-glyphs.
+glyphs. It also reports parsed GSUB selector ligatures and invalid glyph
+references.
 
 Visual validation lives in the standalone browser page `tools/preview.html`.
 Open it directly, select the generated pinyin font, and optionally select the

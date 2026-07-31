@@ -344,6 +344,37 @@
             font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         }
 
+        .selector-note {
+            margin: -4px 0 14px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .selector-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .selector-card {
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .selector-label {
+            margin-bottom: 8px;
+            color: var(--muted);
+            font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+
+        .selector-text {
+            min-height: 82px;
+            font-size: 64px;
+            line-height: 1.2;
+        }
+
         @media (max-width: 860px) {
             main {
                 width: min(100% - 20px, 720px);
@@ -354,7 +385,8 @@
             .workspace,
             .controls,
             .preview-grid.compare,
-            .text-columns.compare {
+            .text-columns.compare,
+            .selector-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -501,6 +533,32 @@
                         <div class="glyph-main pinyin-font">米</div>
                         <div class="glyph-original original-font">米</div>
                         <div class="glyph-name">mǐ · dotless i + caron</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel section">
+                <h2>多音字选择</h2>
+                <p class="selector-note">
+                    对比默认读音、显式候选序号和无效序号；有效的
+                    <code>@序号</code> 应由 GSUB 连字替换并隐藏。
+                </p>
+                <div class="selector-grid">
+                    <div class="selector-card">
+                        <div class="selector-label">默认 · 藏</div>
+                        <div class="selector-text pinyin-font">藏</div>
+                    </div>
+                    <div class="selector-card">
+                        <div class="selector-label">候选 1 · 藏@1 → cáng</div>
+                        <div class="selector-text pinyin-font">藏@1</div>
+                    </div>
+                    <div class="selector-card">
+                        <div class="selector-label">候选 2 · 藏@2 → zàng</div>
+                        <div class="selector-text pinyin-font">藏@2</div>
+                    </div>
+                    <div class="selector-card">
+                        <div class="selector-label">无效候选 · 藏@4 保持原样</div>
+                        <div class="selector-text pinyin-font">藏@4</div>
                     </div>
                 </div>
             </section>

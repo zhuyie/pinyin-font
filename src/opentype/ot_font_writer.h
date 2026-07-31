@@ -39,6 +39,7 @@ private:
     Status __writeTableCvt(uint16_t &tableIndex);
     Status __writeTableFpgm(uint16_t &tableIndex);
     Status __writeTablePrep(uint16_t &tableIndex);
+    Status __writeTableGsub(uint16_t &tableIndex);
 };
 
 //------------------------------------------------------------------------------

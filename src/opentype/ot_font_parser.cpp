@@ -19,7 +19,17 @@ OpenType_Font_Parser::~OpenType_Font_Parser()
     free(data_);
 }
 
-Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
+Status OpenType_Font_Parser::Parse(
+    const char *filename,
+    OpenType_Font *font)
+{
+    return Parse(filename, font, {});
+}
+
+Status OpenType_Font_Parser::Parse(
+    const char *filename,
+    OpenType_Font *font,
+    std::initializer_list<const char *> skipTables)
 {
     assert(font != NULL);
     assert(font_ == NULL);
@@ -72,6 +82,19 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
             return kCorruption;
         }
 
+        bool skipTable = false;
+        for (std::initializer_list<const char *>::const_iterator
+                 it = skipTables.begin(); it != skipTables.end(); ++it) {
+            if (*it != NULL && strlen(*it) == sizeof(t.name) &&
+                memcmp(t.name, *it, sizeof(t.name)) == 0) {
+                skipTable = true;
+                break;
+            }
+        }
+        if (skipTable) {
+            continue;
+        }
+
         if (memcmp(t.name, "head", 4) == 0) {
             head_ = t;
         } else if (memcmp(t.name, "maxp", 4) == 0) {
@@ -98,6 +121,8 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
             fpgm_ = t;
         } else if (memcmp(t.name, "prep", 4) == 0) {
             prep_ = t;
+        } else if (memcmp(t.name, "GSUB", 4) == 0) {
+            gsub_ = t;
         }
     }
     // CFF font not supported yet
@@ -126,6 +151,8 @@ Status OpenType_Font_Parser::Parse(const char *filename, OpenType_Font *font)
     if ((status = __parseFpgm()) != kOk)
         return status;
     if ((status = __parsePrep()) != kOk)
+        return status;
+    if ((status = __parseGsub()) != kOk)
         return status;
 
     return kOk;
@@ -869,5 +896,93 @@ Status OpenType_Font_Parser::__parsePrep()
     uint8_t *dst = &(font_->prep_[0]);
     const uint8_t *src = data_ + prep_.offset;
     memcpy(dst, src, prep_.length);
+    return kOk;
+}
+
+Status OpenType_Font_Parser::__parseGsub()
+{
+    if (gsub_.length == 0) return kOk;
+    if (gsub_.length < 10) return kCorruption;
+    const uint8_t *start = data_ + gsub_.offset;
+    const uint8_t *end = start + gsub_.length;
+    if (u4(start) != 0x00010000) return kOk;
+
+    uint16_t lookupListOffset = u2(start + 8);
+    if (lookupListOffset > gsub_.length - 2) return kCorruption;
+    const uint8_t *lookupList = start + lookupListOffset;
+    uint16_t lookupCount = u2(lookupList);
+    if ((size_t)(end - lookupList) < 2u + 2u * lookupCount)
+        return kCorruption;
+
+    for (uint16_t lookupIndex = 0; lookupIndex < lookupCount; lookupIndex++) {
+        uint16_t lookupOffset = u2(lookupList + 2 + lookupIndex * 2);
+        size_t lookupListRemaining = (size_t)(end - lookupList);
+        if (lookupOffset > lookupListRemaining ||
+            lookupListRemaining - lookupOffset < 6) return kCorruption;
+        const uint8_t *lookup = lookupList + lookupOffset;
+        uint16_t lookupType = u2(lookup);
+        uint16_t subtableCount = u2(lookup + 4);
+        if ((size_t)(end - lookup) < 6u + 2u * subtableCount)
+            return kCorruption;
+        if (lookupType != 4) continue;
+
+        for (uint16_t subIndex = 0; subIndex < subtableCount; subIndex++) {
+            uint16_t subOffset = u2(lookup + 6 + subIndex * 2);
+            size_t lookupRemaining = (size_t)(end - lookup);
+            if (subOffset > lookupRemaining ||
+                lookupRemaining - subOffset < 6) return kCorruption;
+            const uint8_t *subtable = lookup + subOffset;
+            if (u2(subtable) != 1) continue;
+            uint16_t coverageOffset = u2(subtable + 2);
+            uint16_t setCount = u2(subtable + 4);
+            size_t subtableRemaining = (size_t)(end - subtable);
+            if ((size_t)(end - subtable) < 6u + 2u * setCount ||
+                coverageOffset > subtableRemaining ||
+                subtableRemaining - coverageOffset < 4)
+                return kCorruption;
+            const uint8_t *coverage = subtable + coverageOffset;
+            if (u2(coverage) != 1 || u2(coverage + 2) != setCount ||
+                (size_t)(end - coverage) < 4u + 2u * setCount)
+                continue;
+
+            for (uint16_t setIndex = 0; setIndex < setCount; setIndex++) {
+                uint16_t firstGlyph = u2(coverage + 4 + setIndex * 2);
+                uint16_t setOffset = u2(subtable + 6 + setIndex * 2);
+                if (setOffset > subtableRemaining ||
+                    subtableRemaining - setOffset < 2)
+                    return kCorruption;
+                const uint8_t *set = subtable + setOffset;
+                uint16_t ligatureCount = u2(set);
+                if ((size_t)(end - set) < 2u + 2u * ligatureCount)
+                    return kCorruption;
+                for (uint16_t ligIndex = 0; ligIndex < ligatureCount;
+                    ligIndex++) {
+                    uint16_t ligOffset = u2(set + 2 + ligIndex * 2);
+                    size_t setRemaining = (size_t)(end - set);
+                    if (ligOffset > setRemaining ||
+                        setRemaining - ligOffset < 4)
+                        return kCorruption;
+                    const uint8_t *ligature = set + ligOffset;
+                    uint16_t replacement = u2(ligature);
+                    uint16_t componentCount = u2(ligature + 2);
+                    if (componentCount < 2 ||
+                        (size_t)(end - ligature) <
+                            4u + 2u * (componentCount - 1))
+                        return kCorruption;
+                    std::vector<uint16_t> components;
+                    components.push_back(firstGlyph);
+                    for (uint16_t c = 1; c < componentCount; c++)
+                        components.push_back(u2(ligature + 2 + c * 2));
+                    if (replacement >= font_->GlyphCount()) return kCorruption;
+                    bool valid = true;
+                    for (size_t c = 0; c < components.size(); c++)
+                        valid = valid &&
+                            components[c] < font_->GlyphCount();
+                    if (!valid) return kCorruption;
+                    font_->AddLigatureSubstitution(components, replacement);
+                }
+            }
+        }
+    }
     return kOk;
 }

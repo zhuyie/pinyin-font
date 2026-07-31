@@ -233,6 +233,11 @@ typedef struct OpenType_GlyphName {
     std::string Str;               // Valid when ID >= 258
 } OpenType_GlyphName;
 
+typedef struct OpenType_LigatureSubstitution {
+    std::vector<uint16_t> Components;
+    uint16_t LigatureGlyph;
+} OpenType_LigatureSubstitution;
+
 #pragma pack(pop)
 //------------------------------------------------------------------------------
 
@@ -260,6 +265,9 @@ public:
 
     uint16_t CharToGlyphIndex(uint32_t charcode) const;
     const std::vector<CmapSequentialMapGroup>& CmapGroups() const { return char2index_; }
+    const std::vector<OpenType_LigatureSubstitution>& LigatureSubstitutions() const {
+        return ligatureSubstitutions_;
+    }
 
     Status Name(uint16_t nameID, std::vector<OpenType_NameRecord> &records) const;
 
@@ -271,6 +279,9 @@ public:
         uint16_t &glyphIndex);
     Status SetCmap(
         const std::vector<CmapSequentialMapGroup> &groups);
+    Status AddLigatureSubstitution(
+        const std::vector<uint16_t> &components,
+        uint16_t ligatureGlyph);
 
 private:
     OpenType_Head head_;
@@ -282,6 +293,7 @@ private:
     std::vector<OpenType_GlyphHeader*> glyphs_;
     std::vector<OpenType_GlyphName> glyphNames_;
     std::vector<CmapSequentialMapGroup> char2index_;
+    std::vector<OpenType_LigatureSubstitution> ligatureSubstitutions_;
     std::multimap<uint16_t, OpenType_NameRecord> names_;
     std::vector<uint8_t> cvt_;
     std::vector<uint8_t> fpgm_;
