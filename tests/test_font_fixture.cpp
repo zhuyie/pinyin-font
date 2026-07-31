@@ -55,7 +55,8 @@ Status OpenType_TestFontFixture::Write(
     bool useCompositeI,
     const std::set<uint32_t> &compositeCharacters,
     const std::set<uint32_t> &emptyCharacters,
-    const std::map<uint32_t, uint32_t> &sharedMappings)
+    const std::map<uint32_t, uint32_t> &sharedMappings,
+    bool addExtremeOutlier)
 {
     OpenType_Font font;
     OpenType_Font::Builder builder(font);
@@ -68,6 +69,18 @@ Status OpenType_TestFontFixture::Write(
     status = builder.AddUnmappedSimpleGlyph(
         notdef, metric, ".notdef", glyphIndex);
     if (status != kOk) return status;
+
+    if (addExtremeOutlier) {
+        OpenType_GlyphSimple outlier = rectangle(500, 6000);
+        outlier.YMin = -3000;
+        outlier.YMax = 3000;
+        for (size_t i = 0; i < outlier.Points.size(); i++) {
+            outlier.Points[i].Y -= 3000;
+        }
+        status = builder.AddUnmappedSimpleGlyph(
+            outlier, metric, "extreme.unmapped", glyphIndex);
+        if (status != kOk) return status;
+    }
 
     std::set<uint32_t> characters = extraCharacters;
     static const uint32_t requiredHan[] = { 0x6C49, 0x8BED, 0x62FC, 0x97F3 };

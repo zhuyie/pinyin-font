@@ -19,7 +19,8 @@ public:
         const std::set<uint32_t> &emptyCharacters =
             std::set<uint32_t>(),
         const std::map<uint32_t, uint32_t> &sharedMappings =
-            std::map<uint32_t, uint32_t>());
+            std::map<uint32_t, uint32_t>(),
+        bool addExtremeOutlier = false);
 };
 
 #endif

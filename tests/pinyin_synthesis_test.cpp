@@ -17,6 +17,27 @@ static bool expect(bool condition, const char *message)
     return condition;
 }
 
+static const OpenType_GlyphComposite *compositeFor(
+    const OpenType_Font &font, uint32_t charcode)
+{
+    const OpenType_GlyphHeader *header = nullptr;
+    font.Glyph(font.CharToGlyphIndex(charcode), &header);
+    return header && header->NumberOfContours < 0
+        ? (const OpenType_GlyphComposite*)header : nullptr;
+}
+
+static bool sameComponentYOffsets(
+    const OpenType_Font &left, const OpenType_Font &right, uint32_t charcode)
+{
+    const OpenType_GlyphComposite *a = compositeFor(left, charcode);
+    const OpenType_GlyphComposite *b = compositeFor(right, charcode);
+    if (!a || !b || a->SubGlyphs.size() != b->SubGlyphs.size()) return false;
+    for (size_t i = 0; i < a->SubGlyphs.size(); i++) {
+        if (a->SubGlyphs[i].Arg2 != b->SubGlyphs[i].Arg2) return false;
+    }
+    return true;
+}
+
 static bool writeDB(const std::string &path)
 {
     FILE *file = std::fopen(path.c_str(), "wb");
@@ -40,6 +61,33 @@ static bool writeDB(const std::string &path)
 
 PINYINFONT_TEST(pinyin_synthesis)
 {
+    OpenType_OS2 os2 = {};
+    OpenType_Hhea hhea = {};
+    OpenType_Head head = {};
+    os2.sTypoAscender = 800;
+    os2.sTypoDescender = -200;
+    hhea.Ascender = 900;
+    hhea.Descender = -300;
+    head.YMax = 2000;
+    head.YMin = -1000;
+    PinyinVerticalBand band = SelectPinyinVerticalBand(os2, hhea, head);
+    if (!expect(band.YMax == 800 && band.YMin == -200,
+                "valid OS/2 typo metrics were not preferred")) {
+        return 1;
+    }
+    os2.sTypoAscender = 0;
+    band = SelectPinyinVerticalBand(os2, hhea, head);
+    if (!expect(band.YMax == 900 && band.YMin == -300,
+                "valid hhea metrics were not used as the fallback")) {
+        return 1;
+    }
+    hhea.Descender = 1;
+    band = SelectPinyinVerticalBand(os2, hhea, head);
+    if (!expect(band.YMax == 2000 && band.YMin == -1000,
+                "head bounds were not used as the final fallback")) {
+        return 1;
+    }
+
     std::string directory = context.FixtureDirectory;
     std::string sourcePath = directory + "/synthesis-fixture.ttf";
     std::string outputPath = directory + "/synthesis-generated.ttf";
@@ -314,19 +362,19 @@ PINYINFONT_TEST(pinyin_synthesis)
                     "punctuation did not use the Han body scale") ||
             !expect(scaled->SubGlyphs[0].Arg1 ==
                             (int16_t)(sourceMetric.AdvanceWidth * 0.35 / 2) &&
-                        scaled->SubGlyphs[0].Arg2 == 0,
+                        scaled->SubGlyphs[0].Arg2 == -87,
                     "punctuation did not use the Han body offsets") ||
             !expect(sourceHeader &&
                         scaledHeader->XMin ==
                             (int16_t)(sourceHeader->XMin * 0.65 +
                                 scaled->SubGlyphs[0].Arg1) &&
                         scaledHeader->YMin ==
-                            (int16_t)(sourceHeader->YMin * 0.65) &&
+                            (int16_t)(sourceHeader->YMin * 0.65 - 87) &&
                         scaledHeader->XMax ==
                             (int16_t)(sourceHeader->XMax * 0.65 +
                                 scaled->SubGlyphs[0].Arg1) &&
                         scaledHeader->YMax ==
-                            (int16_t)(sourceHeader->YMax * 0.65),
+                            (int16_t)(sourceHeader->YMax * 0.65 - 87),
                     "punctuation transformed bounds are inconsistent") ||
             !expect(scaledMetric.AdvanceWidth == sourceMetric.AdvanceWidth &&
                         scaledMetric.LSB == scaledHeader->XMin,
@@ -374,8 +422,15 @@ PINYINFONT_TEST(pinyin_synthesis)
     const OpenType_GlyphComposite *stacked =
         stackedHeader && stackedHeader->NumberOfContours < 0
             ? (const OpenType_GlyphComposite*)stackedHeader : nullptr;
+    const OpenType_GlyphComposite *maFirst = compositeFor(generated, 0x5988);
+    const OpenType_GlyphComposite *maSecond = compositeFor(generated, 0x9EBB);
     if (!expect(usedSourcePrecomposed,
                 "source precomposed accented i was not preferred") ||
+        !expect(maFirst && maSecond && maFirst->SubGlyphs.size() >= 2 &&
+                    maSecond->SubGlyphs.size() >= 2 &&
+                    maFirst->SubGlyphs[0].Arg2 == maSecond->SubGlyphs[0].Arg2 &&
+                    maFirst->SubGlyphs[1].Arg2 == maSecond->SubGlyphs[1].Arg2,
+                "adjacent Han glyphs did not share a pinyin baseline") ||
         !expect(stacked && stacked->SubGlyphs.size() >= 4 &&
                     stacked->SubGlyphs[2].Arg2 > stacked->SubGlyphs[1].Arg2,
                 "diaeresis and tone components overlap vertically")) {
@@ -425,6 +480,36 @@ PINYINFONT_TEST(pinyin_synthesis)
                     compositeGenerated.CharToGlyphIndex(0x5426) &&
                     compositeGenerated.LigatureSubstitutions().size() == 1,
                 "alternate failure damaged the valid default mapping or rule")) {
+        return 1;
+    }
+
+    std::string outlierSource = directory + "/synthesis-outlier.ttf";
+    std::string outlierOutput = directory + "/synthesis-outlier-generated.ttf";
+    if (!expect(OpenType_TestFontFixture::Write(
+                    outlierSource.c_str(), han, noMarks, true, false,
+                    compositeCharacters, emptyCharacters, sharedMappings,
+                    true) == kOk,
+                "failed to create extreme-outlier fixture")) {
+        return 1;
+    }
+    PinyinFontBuilder outlierBuilder;
+    if (!expect(outlierBuilder.Build(
+                    outlierSource.c_str(), outlierOutput.c_str(), database) == kOk,
+                "extreme-outlier synthesis failed")) {
+        return 1;
+    }
+    OpenType_Font outlierGenerated;
+    OpenType_Font_Parser outlierParser;
+    if (!expect(outlierParser.Parse(
+                    outlierOutput.c_str(), &outlierGenerated) == kOk,
+                "failed to parse extreme-outlier output") ||
+        !expect(outlierGenerated.Head().YMin <= -3000 &&
+                    outlierGenerated.Head().YMax >= 3000,
+                "outlier fixture did not change global head bounds") ||
+        !expect(sameComponentYOffsets(generated, outlierGenerated, 0x5988) &&
+                    sameComponentYOffsets(generated, outlierGenerated, 0x9EBB) &&
+                    sameComponentYOffsets(generated, outlierGenerated, 0x0021),
+                "unrelated head extrema changed synthesized Y offsets")) {
         return 1;
     }
 

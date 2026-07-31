@@ -666,8 +666,13 @@ Status OpenType_Font_Parser::__parseGlyphComposite(const uint8_t *data, size_t l
             if (parsed + 2 > len) {
                 return kCorruption;
             }
-            subglyph.Arg1 = data[parsed];
-            subglyph.Arg2 = data[parsed + 1];
+            if (flags & OpenType_FlagArgsAreXYValues) {
+                subglyph.Arg1 = (int8_t)data[parsed];
+                subglyph.Arg2 = (int8_t)data[parsed + 1];
+            } else {
+                subglyph.Arg1 = data[parsed];
+                subglyph.Arg2 = data[parsed + 1];
+            }
             parsed += 2;
         }
         // transformation
