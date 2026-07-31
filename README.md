@@ -9,7 +9,6 @@ src/synthesis/  Pinyin glyph and font synthesis
 cli/            User-facing command-line entry point
 tools/          Development and diagnostic utilities
 tests/          CTest-discoverable smoke/regression tests
-data/           Project-owned pinyin data inputs
 ```
 
 ## Build
@@ -32,7 +31,8 @@ build/pinyinfont --input <font.ttf> --pinyin-db <pinyin-db.txt> [--output <out.t
 ```
 
 The pinyin database is required because it controls which pinyin readings are
-synthesized. Its format comes from
+synthesized. Users are responsible for generating or obtaining the database
+and providing its path to the CLI. Its format comes from
 [`zhuyie/pinyin-db`](https://github.com/zhuyie/pinyin-db): UTF-8 text with one
 entry per line and three tab-separated fields — the character, its hexadecimal
 Unicode scalar value, and one or more comma-separated pinyin readings.

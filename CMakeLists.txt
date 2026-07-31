@@ -76,7 +76,7 @@ target_link_libraries(pinyin_db_smoke
     pinyinfont)
 add_test(
     NAME pinyin_db_smoke
-    COMMAND pinyin_db_smoke "${CMAKE_CURRENT_SOURCE_DIR}/data/TGHZ2013.txt")
+    COMMAND pinyin_db_smoke "${PINYINFONT_TEST_FIXTURE_DIR}")
 
 add_executable(pinyin_components_test
     tests/pinyin_components_test.cpp

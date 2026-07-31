@@ -106,16 +106,16 @@ The project SHALL include CTest-discoverable tests that verify the migrated stru
 - **WHEN** the tests are run
 - **THEN** at least one test exercises core project behavior affected by the migration, such as pinyin data loading, CLI invocation, or font processing on an approved fixture
 
-### Requirement: Data inputs are project-owned or explicit
-The project SHALL avoid relying on manually populated build-directory data as the source of truth for CLI or test behavior.
+### Requirement: Data inputs are explicit
+The project SHALL require users to generate or obtain pinyin data and provide its location explicitly to the CLI.
 
 #### Scenario: CLI data dependency is explicit
 - **WHEN** the CLI needs pinyin data
-- **THEN** the data path is provided by a documented argument, a project-owned `data/` path, or a documented installed/copied resource path
+- **THEN** the data path is provided by the documented `--pinyin-db` argument
 
 #### Scenario: Tests do not depend on local build artifacts
 - **WHEN** tests run from a fresh build directory
-- **THEN** they do not require pre-existing untracked files under `build/data`
+- **THEN** they generate any required pinyin database fixture under the dedicated test-fixture build directory
 
 ### Requirement: Generated artifacts are excluded from source structure
 The project SHALL exclude generated build outputs, generated fonts, editor metadata, caches, and OS metadata from the tracked project structure.

@@ -2,15 +2,34 @@
 #include <cstdio>
 #include <string>
 
+static bool writeDB(const std::string &path)
+{
+    FILE *file = std::fopen(path.c_str(), "wb");
+    if (!file) return false;
+    const char *contents =
+        "一\t4E00\tyī\n"
+        "呒\t5452\tḿ\n"
+        "嗯\t55EF\tńg,ňg,ǹg\n";
+    bool ok = std::fputs(contents, file) >= 0;
+    std::fclose(file);
+    return ok;
+}
+
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
-        std::fprintf(stderr, "usage: %s pinyin-db\n", argv[0]);
+        std::fprintf(stderr, "usage: %s output-directory\n", argv[0]);
+        return 1;
+    }
+
+    std::string databasePath = std::string(argv[1]) + "/pinyin-db-smoke.txt";
+    if (!writeDB(databasePath)) {
+        std::fprintf(stderr, "failed to create pinyin db fixture\n");
         return 1;
     }
 
     PinyinDB db;
-    Status status = db.Load(argv[1]);
+    Status status = db.Load(databasePath.c_str());
     if (status != kOk) {
         std::fprintf(stderr, "failed to load pinyin db: %d\n", status);
         return 1;
