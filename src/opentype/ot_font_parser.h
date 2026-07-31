@@ -4,6 +4,7 @@
 #include "ot_font.h"
 #include <cstdio>
 #include <cstdlib>
+#include <initializer_list>
 
 //------------------------------------------------------------------------------
 
@@ -36,12 +37,17 @@ class OpenType_Font_Parser
     table cvt_;
     table fpgm_;
     table prep_;
+    table gsub_;
 
 public:
     OpenType_Font_Parser();
     ~OpenType_Font_Parser();
 
     Status Parse(const char *filename, OpenType_Font *font);
+    Status Parse(
+        const char *filename,
+        OpenType_Font *font,
+        std::initializer_list<const char *> skipTables);
 
 private:
     Status __readWholeFile(FILE *f, size_t *pLen, uint8_t **ppData);
@@ -61,6 +67,7 @@ private:
     Status __parseCvt();
     Status __parseFpgm();
     Status __parsePrep();
+    Status __parseGsub();
 };
 
 //------------------------------------------------------------------------------

@@ -108,6 +108,7 @@ void OpenType_Font::Clear()
     glyphs_.clear();
     glyphNames_.clear();
     char2index_.clear();
+    ligatureSubstitutions_.clear();
     names_.clear();
 
     cvt_.clear();
@@ -244,6 +245,41 @@ Status OpenType_Font::SetCmap(
         return kError;
     }
     char2index_ = groups;
+    return kOk;
+}
+
+Status OpenType_Font::AddLigatureSubstitution(
+    const std::vector<uint16_t> &components,
+    uint16_t ligatureGlyph)
+{
+    if (components.size() < 2 || components.size() > 0xFFFF ||
+        ligatureGlyph == 0 || ligatureGlyph >= glyphs_.size()) {
+        return kInvalidArgs;
+    }
+    for (size_t i = 0; i < components.size(); i++) {
+        if (components[i] == 0 || components[i] >= glyphs_.size()) {
+            return kInvalidArgs;
+        }
+    }
+    for (size_t i = 0; i < ligatureSubstitutions_.size(); i++) {
+        if (ligatureSubstitutions_[i].Components == components) {
+            return kInvalidArgs;
+        }
+    }
+    OpenType_LigatureSubstitution rule;
+    rule.Components = components;
+    rule.LigatureGlyph = ligatureGlyph;
+    ligatureSubstitutions_.push_back(rule);
+    std::sort(
+        ligatureSubstitutions_.begin(), ligatureSubstitutions_.end(),
+        [](const OpenType_LigatureSubstitution &a,
+           const OpenType_LigatureSubstitution &b) {
+            if (a.Components[0] != b.Components[0])
+                return a.Components[0] < b.Components[0];
+            if (a.Components.size() != b.Components.size())
+                return a.Components.size() > b.Components.size();
+            return a.Components < b.Components;
+        });
     return kOk;
 }
 

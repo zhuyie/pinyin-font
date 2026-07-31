@@ -36,7 +36,7 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const char *outputFont, 
     auto start = system_clock::now();
     
     OpenType_Font_Parser parser;
-    status = parser.Parse(sourceFont, &font_);
+    status = parser.Parse(sourceFont, &font_, {"GSUB"});
     if (status != kOk) {
         return status;
     }
@@ -224,8 +224,10 @@ Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
     for (size_t i = 0; i < count; i++) {
         pinyinDB.GetRecord(i, record);
         ComposeFailure composeFailure = ComposeFailure::None;
+        uint16_t defaultGlyphIndex = 0;
         status = __addPinyinGlyph(
-            record.charcode, record.pinyin[0], composeFailure);
+            record.charcode, record.pinyin[0], 0, true,
+            composeFailure, defaultGlyphIndex);
         if (status == kNotFound) {
             synthesisStats_.SourceHanMissing++;
             continue;
@@ -246,6 +248,47 @@ Status PinyinFontBuilder::__addPinyinGlyphs(const PinyinDB &pinyinDB)
                 synthesisStats_.ComponentFailed++;
             } else {
                 synthesisStats_.OtherFailed++;
+            }
+        }
+
+        if (status != kOk) continue;
+        size_t readingCount = 0;
+        while (readingCount < 4 && !record.pinyin[readingCount].empty())
+            readingCount++;
+        if (readingCount < 2) continue;
+
+        uint16_t atGlyphIndex = font_.CharToGlyphIndex('@');
+        for (size_t readingIndex = 0; readingIndex < readingCount;
+             readingIndex++) {
+            uint16_t digitGlyphIndex =
+                font_.CharToGlyphIndex((uint32_t)('1' + readingIndex));
+            if (atGlyphIndex == 0 || digitGlyphIndex == 0) {
+                synthesisStats_.SelectorMissingInputOmissions++;
+                continue;
+            }
+
+            uint16_t selectedGlyphIndex = defaultGlyphIndex;
+            if (readingIndex > 0) {
+                ComposeFailure alternateFailure = ComposeFailure::None;
+                Status alternateStatus = __addPinyinGlyph(
+                    record.charcode, record.pinyin[readingIndex],
+                    readingIndex, false, alternateFailure, selectedGlyphIndex);
+                if (alternateStatus != kOk) {
+                    synthesisStats_.AlternateSynthesisOmissions++;
+                    continue;
+                }
+                synthesisStats_.AlternateGlyphsGenerated++;
+            }
+
+            std::vector<uint16_t> components;
+            components.push_back(defaultGlyphIndex);
+            components.push_back(atGlyphIndex);
+            components.push_back(digitGlyphIndex);
+            if (font_.AddLigatureSubstitution(
+                    components, selectedGlyphIndex) == kOk) {
+                synthesisStats_.SelectorLigaturesGenerated++;
+            } else {
+                synthesisStats_.AlternateSynthesisOmissions++;
             }
         }
     }
@@ -407,8 +450,12 @@ Status PinyinFontBuilder::__addScaledPunctuationGlyphs()
 Status PinyinFontBuilder::__addPinyinGlyph(
     uint32_t charcode,
     const std::wstring &pinyin,
-    ComposeFailure &composeFailure)
+    size_t readingIndex,
+    bool mapped,
+    ComposeFailure &composeFailure,
+    uint16_t &glyphIndex)
 {
+    glyphIndex = 0;
     composeFailure = ComposeFailure::None;
     usedGeneratedMark_ = false;
     usedDotlessI_ = false;
@@ -455,21 +502,21 @@ Status PinyinFontBuilder::__addPinyinGlyph(
 
     __addSubGlyph(glyph, baseGlyphIndex, baseBBox, baseRatio_, baseDX, baseDY_, true);
 
-    char nameBuf[20] = { 0 };
-    snprintf(nameBuf, sizeof(nameBuf), "uni%04X_py00", (unsigned int)charcode);
+    char nameBuf[24] = { 0 };
+    snprintf(nameBuf, sizeof(nameBuf), "uni%04X_py%02u",
+        (unsigned int)charcode, (unsigned int)readingIndex);
     OpenType_GlyphName name;
     name.ID = 258;
     name.Str = nameBuf;
 
     baseHmtx.LSB = glyph.XMin;
 
-    uint16_t glyphIndex;
     Status status = font_.AddGlyph(&glyph, &baseHmtx, name, glyphIndex);
     if (status != kOk) {
         return status;
     }
 
-    char2index_[charcode] = glyphIndex;
+    if (mapped) char2index_[charcode] = glyphIndex;
 
     return kOk;
 }

@@ -22,6 +22,10 @@ struct PinyinSynthesisStats {
     uint32_t ComponentFailed = 0;
     uint32_t DotlessIFailed = 0;
     uint32_t OtherFailed = 0;
+    uint32_t AlternateGlyphsGenerated = 0;
+    uint32_t SelectorLigaturesGenerated = 0;
+    uint32_t SelectorMissingInputOmissions = 0;
+    uint32_t AlternateSynthesisOmissions = 0;
 };
 
 struct PinyinComponentStats {
@@ -115,7 +119,10 @@ private:
     Status __addPinyinGlyph(
         uint32_t charcode,
         const std::wstring &pinyin,
-        ComposeFailure &composeFailure);
+        size_t readingIndex,
+        bool mapped,
+        ComposeFailure &composeFailure,
+        uint16_t &glyphIndex);
     void __addSubGlyph(
         OpenType_GlyphComposite &glyph, 
         uint16_t glyphIndex, const boundingBox &bbox, double scale, int16_t dx, int16_t dy, bool isLastOne);

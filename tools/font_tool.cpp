@@ -393,6 +393,42 @@ static void checkCmapIntegrity(const OpenType_Font &source, const OpenType_Font 
     std::fprintf(stdout, "\n");
 }
 
+static void checkLigatureIntegrity(const OpenType_Font &generated)
+{
+    const std::vector<OpenType_LigatureSubstitution> &rules =
+        generated.LigatureSubstitutions();
+    uint16_t atGlyph = generated.CharToGlyphIndex('@');
+    int selectorRules = 0;
+    int otherLigatures = 0;
+    int invalidReferences = 0;
+    for (size_t i = 0; i < rules.size(); i++) {
+        const OpenType_LigatureSubstitution &rule = rules[i];
+        bool valid = rule.LigatureGlyph > 0 &&
+            rule.LigatureGlyph < generated.GlyphCount();
+        for (size_t c = 0; c < rule.Components.size(); c++) {
+            valid = valid && rule.Components[c] > 0 &&
+                rule.Components[c] < generated.GlyphCount();
+        }
+        if (!valid) {
+            invalidReferences++;
+            continue;
+        }
+        bool selector = rule.Components.size() == 3 &&
+            atGlyph != 0 && rule.Components[1] == atGlyph;
+        if (selector) selectorRules++;
+        else otherLigatures++;
+    }
+    std::fprintf(stdout, "GSUB ligature integrity:\n");
+    std::fprintf(stdout, "  ParsedLigatures = %u\n",
+        (unsigned int)rules.size());
+    std::fprintf(stdout, "  SelectorRules = %d\n", selectorRules);
+    std::fprintf(stdout, "  OtherLigatures = %d\n", otherLigatures);
+    std::fprintf(stdout, "  InvalidReferences = %d\n", invalidReferences);
+    std::fprintf(stdout, "  LigatureReferencesOK = %s\n",
+        invalidReferences == 0 ? "yes" : "no");
+    std::fprintf(stdout, "\n");
+}
+
 static int compositeDepth(const OpenType_Font &font, uint16_t glyphID, std::vector<uint8_t> &visiting)
 {
     if (glyphID >= (uint16_t)font.GlyphCount()) {
@@ -579,6 +615,7 @@ static int checkGeneratedFontIntegrity(const char *sourceFile, const char *gener
     std::fprintf(stdout, "\n");
 
     checkCmapIntegrity(source, generated);
+    checkLigatureIntegrity(generated);
     checkMetricIntegrity(source, generated);
     return 0;
 }

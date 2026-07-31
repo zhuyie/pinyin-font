@@ -36,6 +36,12 @@ public:
         const std::string &name,
         uint16_t &glyphIndex);
 
+    Status AddUnmappedCompositeGlyph(
+        const OpenType_GlyphComposite &glyph,
+        const OpenType_LongHorMetric &metric,
+        const std::string &name,
+        uint16_t &glyphIndex);
+
     Status Finish();
 
 private:

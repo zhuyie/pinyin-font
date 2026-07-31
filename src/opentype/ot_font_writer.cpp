@@ -49,6 +49,8 @@ Status OpenType_Font_Writer::Write(const char *filename, const OpenType_Font *fo
         return status;
     // The records in the array must be sorted in ascending order by tag.
     uint16_t tableIndex = 0;
+    if ((status = __writeTableGsub(tableIndex)) != kOk)
+        return status;
     if ((status = __writeTableOS2(tableIndex)) != kOk)
         return status;
     if ((status = __writeTableCmap(tableIndex)) != kOk)
@@ -860,6 +862,8 @@ void OpenType_Font_Writer::__updateChecksumAdjustment(uint16_t numTables)
 uint16_t OpenType_Font_Writer::__numOptionalTables()
 {
     uint16_t n = 0;
+    if (font_->ligatureSubstitutions_.size() > 0)
+        n++;
     if (font_->cvt_.size() > 0)
         n++;
     if (font_->fpgm_.size() > 0)
@@ -940,6 +944,138 @@ Status OpenType_Font_Writer::__writeTablePrep(uint16_t &tableIndex)
     put_u4(t + 8,  offset);
     put_u4(t + 12, length);
 
+    tableIndex++;
+    return kOk;
+}
+
+Status OpenType_Font_Writer::__writeTableGsub(uint16_t &tableIndex)
+{
+    if (font_->ligatureSubstitutions_.empty()) return kOk;
+
+    typedef std::vector<OpenType_LigatureSubstitution> RuleList;
+    std::map<uint16_t, RuleList> grouped;
+    for (size_t i = 0; i < font_->ligatureSubstitutions_.size(); i++) {
+        const OpenType_LigatureSubstitution &rule =
+            font_->ligatureSubstitutions_[i];
+        if (rule.Components.size() < 2 ||
+            rule.LigatureGlyph >= font_->glyphs_.size()) {
+            return kError;
+        }
+        grouped[rule.Components[0]].push_back(rule);
+    }
+
+    std::vector<uint8_t> table;
+    auto appendU2 = [&table](uint16_t value) {
+        size_t p = table.size();
+        table.resize(p + 2);
+        put_u2(&table[p], value);
+    };
+    auto appendU4 = [&table](uint32_t value) {
+        size_t p = table.size();
+        table.resize(p + 4);
+        put_u4(&table[p], value);
+    };
+    auto patchU2 = [&table](size_t p, size_t value) -> bool {
+        if (value > 0xFFFF || p + 2 > table.size()) return false;
+        put_u2(&table[p], (uint16_t)value);
+        return true;
+    };
+
+    appendU4(0x00010000);
+    appendU2(10);
+    appendU2(0);
+    appendU2(0);
+
+    // ScriptList: DFLT and hani share one Script table and default LangSys.
+    size_t scriptList = table.size();
+    appendU2(2);
+    table.insert(table.end(), {'D','F','L','T'});
+    appendU2(0);
+    table.insert(table.end(), {'h','a','n','i'});
+    appendU2(0);
+    size_t scriptTable = table.size();
+    appendU2(4);
+    appendU2(0);
+    appendU2(0);
+    appendU2(0xFFFF);
+    appendU2(1);
+    appendU2(0);
+    if (!patchU2(scriptList + 6, scriptTable - scriptList) ||
+        !patchU2(scriptList + 12, scriptTable - scriptList)) return kError;
+
+    size_t featureList = table.size();
+    if (!patchU2(6, featureList)) return kError;
+    appendU2(1);
+    table.insert(table.end(), {'l','i','g','a'});
+    appendU2(8);
+    appendU2(0);
+    appendU2(1);
+    appendU2(0);
+
+    size_t lookupList = table.size();
+    if (!patchU2(8, lookupList)) return kError;
+    appendU2(1);
+    appendU2(4);
+    size_t lookupTable = table.size();
+    appendU2(4);
+    appendU2(0);
+    appendU2(1);
+    appendU2(8);
+    size_t subtable = table.size();
+    appendU2(1);
+    appendU2(0);
+    appendU2((uint16_t)grouped.size());
+    std::vector<size_t> setOffsetPositions;
+    for (size_t i = 0; i < grouped.size(); i++) {
+        setOffsetPositions.push_back(table.size());
+        appendU2(0);
+    }
+
+    size_t setIndex = 0;
+    for (std::map<uint16_t, RuleList>::const_iterator group = grouped.begin();
+         group != grouped.end(); ++group, ++setIndex) {
+        size_t setStart = table.size();
+        if (!patchU2(setOffsetPositions[setIndex], setStart - subtable))
+            return kError;
+        appendU2((uint16_t)group->second.size());
+        std::vector<size_t> ligOffsetPositions;
+        for (size_t i = 0; i < group->second.size(); i++) {
+            ligOffsetPositions.push_back(table.size());
+            appendU2(0);
+        }
+        for (size_t i = 0; i < group->second.size(); i++) {
+            const OpenType_LigatureSubstitution &rule = group->second[i];
+            size_t ligStart = table.size();
+            if (!patchU2(ligOffsetPositions[i], ligStart - setStart))
+                return kError;
+            appendU2(rule.LigatureGlyph);
+            appendU2((uint16_t)rule.Components.size());
+            for (size_t j = 1; j < rule.Components.size(); j++)
+                appendU2(rule.Components[j]);
+        }
+    }
+
+    size_t coverage = table.size();
+    if (!patchU2(subtable + 2, coverage - subtable)) return kError;
+    appendU2(1);
+    appendU2((uint16_t)grouped.size());
+    for (std::map<uint16_t, RuleList>::const_iterator group = grouped.begin();
+         group != grouped.end(); ++group) {
+        appendU2(group->first);
+    }
+
+    if (table.size() > 0xFFFF) return kError;
+    size_t offset = buf_.size();
+    uint32_t length = (uint32_t)table.size();
+    uint32_t paddedLength = (length + 3u) & ~3u;
+    buf_.resize(offset + paddedLength, 0);
+    memcpy(&buf_[offset], &table[0], length);
+
+    uint8_t *record = &buf_[12 + tableIndex * 16];
+    memcpy(record, "GSUB", 4);
+    put_u4(record + 4, __checksum(&buf_[offset], paddedLength));
+    put_u4(record + 8, (uint32_t)offset);
+    put_u4(record + 12, length);
     tableIndex++;
     return kOk;
 }

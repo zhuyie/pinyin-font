@@ -100,6 +100,15 @@ Status OpenType_Font::Builder::AddUnmappedSimpleGlyph(
     return addGlyph(glyph, metric, name, glyphIndex);
 }
 
+Status OpenType_Font::Builder::AddUnmappedCompositeGlyph(
+    const OpenType_GlyphComposite &glyph,
+    const OpenType_LongHorMetric &metric,
+    const std::string &name,
+    uint16_t &glyphIndex)
+{
+    return addGlyph(glyph, metric, name, glyphIndex);
+}
+
 Status OpenType_Font::Builder::Finish()
 {
     if (!initialized_ || finished_ || font_.GlyphCount() == 0 ||
