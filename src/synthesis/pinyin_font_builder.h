@@ -14,6 +14,16 @@
 class PinyinDB;
 class PinyinComponents;
 
+struct PinyinVerticalBand {
+    int16_t YMin;
+    int16_t YMax;
+};
+
+PinyinVerticalBand SelectPinyinVerticalBand(
+    const OpenType_OS2 &os2,
+    const OpenType_Hhea &hhea,
+    const OpenType_Head &head);
+
 struct PinyinSynthesisStats {
     uint32_t SourceHanMissing = 0;
     uint32_t SourceOnlyGenerated = 0;

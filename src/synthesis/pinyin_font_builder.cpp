@@ -9,6 +9,27 @@ using namespace std::chrono;
 
 //------------------------------------------------------------------------------
 
+static bool isValidVerticalBand(int16_t yMin, int16_t yMax)
+{
+    return yMax > 0 && yMin <= 0 && yMax > yMin;
+}
+
+PinyinVerticalBand SelectPinyinVerticalBand(
+    const OpenType_OS2 &os2,
+    const OpenType_Hhea &hhea,
+    const OpenType_Head &head)
+{
+    if (isValidVerticalBand(os2.sTypoDescender, os2.sTypoAscender)) {
+        return { os2.sTypoDescender, os2.sTypoAscender };
+    }
+    if (isValidVerticalBand(hhea.Descender, hhea.Ascender)) {
+        return { hhea.Descender, hhea.Ascender };
+    }
+    return { head.YMin, head.YMax };
+}
+
+//------------------------------------------------------------------------------
+
 PinyinFontBuilder::PinyinFontBuilder()
 : baseRatio_(0.65), pinyinRatio_(0.35), 
   pinyinCharSpace_(0), pinyinMarkVSpace_(0), pinyinCharYMin_(0),
@@ -52,11 +73,15 @@ Status PinyinFontBuilder::Build(const char *sourceFont, const char *outputFont, 
     pinyinMarkVSpace_ = components_->MarkGap();
     pinyinCharYMin_ = __calcPinyinCharYMin();
 
+    PinyinVerticalBand verticalBand = SelectPinyinVerticalBand(
+        font_.OS2(), font_.Hhea(), font_.Head());
     baseDY_ = 0;
-    if (font_.Head().YMin < 0) {
-        baseDY_ = (int16_t)(font_.Head().YMin * (1.0 - baseRatio_));
+    if (verticalBand.YMin < 0) {
+        baseDY_ = (int16_t)(verticalBand.YMin * (1.0 - baseRatio_));
     }
-    pinyinDY_ = baseDY_ + (int16_t)(font_.Head().YMax * baseRatio_) + (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio_);
+    pinyinDY_ = baseDY_ +
+        (int16_t)(verticalBand.YMax * baseRatio_) +
+        (int16_t)(pinyinCharYMin_ * (-1) * pinyinRatio_);
 
     if (!__checkRequiredGlyphs()) {
         return kNotSupported;
