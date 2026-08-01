@@ -2,6 +2,8 @@
 
 `pinyin-font` is a command-line tool for generating pinyin-annotated TrueType fonts.
 
+![Pinyin font preview](docs/font-preview.png)
+
 ```text
 src/opentype/   OpenType parsing, writing, cmap, glyph, and table logic
 src/pinyin/     Pinyin database loading and normalization
