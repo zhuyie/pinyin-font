@@ -464,6 +464,7 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
     int yMinBeforeHead = 0;
     int xMaxAfterHead = 0;
     int yMaxAfterHead = 0;
+    int xMinBeforeAdvance = 0;
     int xMaxAfterAdvance = 0;
     int yMaxAfterHheaAscender = 0;
     int yMinBeforeHheaDescender = 0;
@@ -505,6 +506,7 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
         if (header->YMin < generated.Head().YMin) yMinBeforeHead++;
         if (header->XMax > generated.Head().XMax) xMaxAfterHead++;
         if (header->YMax > generated.Head().YMax) yMaxAfterHead++;
+        if (header->XMin < 0) xMinBeforeAdvance++;
         if (header->XMax > mtx.AdvanceWidth) xMaxAfterAdvance++;
         if (header->YMax > generated.Hhea().Ascender) yMaxAfterHheaAscender++;
         if (header->YMin < generated.Hhea().Descender) yMinBeforeHheaDescender++;
@@ -563,7 +565,9 @@ static void checkMetricIntegrity(const OpenType_Font &source, const OpenType_Fon
     std::fprintf(stdout, "  CheckedGlyphs = %d\n", checkedGlyphs);
     std::fprintf(stdout, "  HeadOverflow = { XMin=%d, YMin=%d, XMax=%d, YMax=%d }\n",
         xMinBeforeHead, yMinBeforeHead, xMaxAfterHead, yMaxAfterHead);
-    std::fprintf(stdout, "  AdvanceOverflow = %d\n", xMaxAfterAdvance);
+    std::fprintf(stdout,
+        "  AdvanceOverflow = { XMinBeforeZero=%d, XMaxAfterAdvance=%d }\n",
+        xMinBeforeAdvance, xMaxAfterAdvance);
     std::fprintf(stdout, "  HheaVerticalOverflow = { YMaxAboveAscender=%d, YMinBelowDescender=%d }\n",
         yMaxAfterHheaAscender, yMinBeforeHheaDescender);
     std::fprintf(stdout, "  OS2WinVerticalOverflow = { YMaxAboveWinAscent=%d, YMinBelowWinDescent=%d }\n",

@@ -1,8 +1,11 @@
 #include "ot_font_parser.h"
 #include "pinyin_db.h"
 #include "pinyin_font_builder.h"
+#include "pinyin_layout.h"
 #include "test_font_fixture.h"
 #include "test_runner.h"
+#include <algorithm>
+#include <climits>
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
@@ -38,6 +41,63 @@ static bool sameComponentYOffsets(
     return true;
 }
 
+static int32_t transformedX(int16_t x, const OpenType_GlyphComponent &component)
+{
+    return (int32_t)((int64_t)x * component.Transform[0] /
+        OpenType_F2Dot14Scale) +
+        component.Arg1;
+}
+
+static bool pinyinBounds(
+    const OpenType_Font &font, uint32_t charcode,
+    int32_t &xMin, int32_t &xMax)
+{
+    const OpenType_GlyphComposite *composite = compositeFor(font, charcode);
+    if (!composite || composite->SubGlyphs.size() < 2) return false;
+    xMin = INT32_MAX;
+    xMax = INT32_MIN;
+    for (size_t i = 0; i + 1 < composite->SubGlyphs.size(); i++) {
+        const OpenType_GlyphComponent &component = composite->SubGlyphs[i];
+        const OpenType_GlyphHeader *header = nullptr;
+        font.Glyph(component.GlyphIndex, &header);
+        if (!header) return false;
+        xMin = std::min(xMin, transformedX(header->XMin, component));
+        xMax = std::max(xMax, transformedX(header->XMax, component));
+    }
+    return true;
+}
+
+static bool sameComponentXLayout(
+    const OpenType_Font &left, const OpenType_Font &right, uint32_t charcode)
+{
+    const OpenType_GlyphComposite *a = compositeFor(left, charcode);
+    const OpenType_GlyphComposite *b = compositeFor(right, charcode);
+    if (!a || !b || a->SubGlyphs.size() != b->SubGlyphs.size()) return false;
+    for (size_t i = 0; i + 1 < a->SubGlyphs.size(); i++) {
+        if (a->SubGlyphs[i].Arg1 != b->SubGlyphs[i].Arg1 ||
+            a->SubGlyphs[i].Transform[0] != b->SubGlyphs[i].Transform[0]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool pinyinComponentsShareTransform(
+    const OpenType_Font &font, uint32_t charcode)
+{
+    const OpenType_GlyphComposite *composite = compositeFor(font, charcode);
+    if (!composite || composite->SubGlyphs.size() < 2) return false;
+    int16_t scaleX = composite->SubGlyphs[0].Transform[0];
+    int16_t scaleY = composite->SubGlyphs[0].Transform[3];
+    for (size_t i = 1; i + 1 < composite->SubGlyphs.size(); i++) {
+        if (composite->SubGlyphs[i].Transform[0] != scaleX ||
+            composite->SubGlyphs[i].Transform[3] != scaleY) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool writeDB(const std::string &path)
 {
     FILE *file = std::fopen(path.c_str(), "wb");
@@ -52,11 +112,33 @@ static bool writeDB(const std::string &path)
         "呒\t5452\tḿ\n"
         "嗯\t55EF\tńg,ňg,ǹg\n"
         "一\t4E00\tyī\n"
+        "庄\t5E84\tzhuāng\n"
+        "妆\t5986\tzhuāng\n"
         "藏\t85CF\tcáng,zàng\n"
         "六\t516D\tliù\n";
     bool ok = std::fputs(contents, file) >= 0;
     std::fclose(file);
     return ok;
+}
+
+static bool resolvedPinyinBounds(
+    const std::vector<PinyinHorizontalComponent> &components,
+    const PinyinHorizontalLayout &layout,
+    int32_t &xMin,
+    int32_t &xMax)
+{
+    if (components.size() != layout.ComponentOffsetsX.size()) return false;
+    xMin = INT32_MAX;
+    xMax = INT32_MIN;
+    for (size_t i = 0; i < components.size(); i++) {
+        xMin = std::min(xMin,
+            (int32_t)((int64_t)components[i].XMin * layout.ScaleX /
+                OpenType_F2Dot14Scale) + layout.ComponentOffsetsX[i]);
+        xMax = std::max(xMax,
+            (int32_t)((int64_t)components[i].XMax * layout.ScaleX /
+                OpenType_F2Dot14Scale) + layout.ComponentOffsetsX[i]);
+    }
+    return true;
 }
 
 PINYINFONT_TEST(pinyin_synthesis)
@@ -88,6 +170,48 @@ PINYINFONT_TEST(pinyin_synthesis)
         return 1;
     }
 
+    std::vector<PinyinHorizontalComponent> shortComponents;
+    shortComponents.push_back({ 40, 470, 0 });
+    shortComponents.push_back({ -120, 640, 540 });
+    PinyinHorizontalLayout shortLayout = {};
+    int32_t shortLayoutMin = 0, shortLayoutMax = 0;
+    if (!expect(ResolvePinyinHorizontalLayout(
+                    shortComponents, 1000, 0.35, shortLayout),
+                "short horizontal layout could not be resolved") ||
+        !expect(shortLayout.ScaleX ==
+                    (int16_t)(0.35 * OpenType_F2Dot14Scale),
+                "short horizontal layout did not retain its scale limit") ||
+        !expect(resolvedPinyinBounds(
+                    shortComponents, shortLayout,
+                    shortLayoutMin, shortLayoutMax) &&
+                    shortLayoutMin + shortLayoutMax == 999,
+                "short horizontal layout was not advance-cell centered")) {
+        return 1;
+    }
+
+    std::vector<PinyinHorizontalComponent> longComponents;
+    for (int32_t x = 0; x < 6 * 540; x += 540) {
+        longComponents.push_back({ 40, 470, x });
+    }
+    // A wide mark attached to the third base must participate in fitting.
+    longComponents.push_back({ -120, 640, 2 * 540 });
+    PinyinHorizontalLayout longLayout = {};
+    int32_t longLayoutMin = 0, longLayoutMax = 0;
+    if (!expect(ResolvePinyinHorizontalLayout(
+                    longComponents, 600, 0.35, longLayout),
+                "long horizontal layout could not be resolved") ||
+        !expect(longLayout.ScaleX < shortLayout.ScaleX,
+                "long horizontal layout did not reduce its X scale") ||
+        !expect(resolvedPinyinBounds(
+                    longComponents, longLayout,
+                    longLayoutMin, longLayoutMax) &&
+                    longLayoutMin >= 0 && longLayoutMax <= 600 &&
+                    (longLayoutMin + longLayoutMax == 599 ||
+                     longLayoutMin + longLayoutMax == 600),
+                "long horizontal layout did not fit and center its ink")) {
+        return 1;
+    }
+
     std::string directory = context.FixtureDirectory;
     std::string sourcePath = directory + "/synthesis-fixture.ttf";
     std::string outputPath = directory + "/synthesis-generated.ttf";
@@ -95,7 +219,8 @@ PINYINFONT_TEST(pinyin_synthesis)
 
     std::set<uint32_t> han;
     static const uint32_t annotatedHan[] = {
-        0x5988, 0x9EBB, 0x9A6C, 0x9A82, 0x5973, 0x7C73
+        0x5988, 0x9EBB, 0x9A6C, 0x9A82, 0x5973, 0x7C73,
+        0x5E84, 0x5986
     };
     han.insert(
         annotatedHan,
@@ -156,7 +281,7 @@ PINYINFONT_TEST(pinyin_synthesis)
     builder.GetStats(
         oldCount, addOK, addFailed, parseTime, synthesisTime, writeTime);
     const PinyinSynthesisStats &stats = builder.GetSynthesisStats();
-    if (!expect(addOK == 10 && addFailed == 0,
+    if (!expect(addOK == 12 && addFailed == 0,
                 "unexpected fixture coverage totals") ||
         !expect(stats.SourceHanMissing == 1,
                 "missing source Han was not classified") ||
@@ -356,25 +481,27 @@ PINYINFONT_TEST(pinyin_synthesis)
                         scaled->SubGlyphs[0].GlyphIndex == sourceIndex,
                     "whitelisted punctuation was not wrapped") ||
             !expect(scaled->SubGlyphs[0].Transform[0] ==
-                            (int16_t)(0.65 * 16384.0) &&
+                            (int16_t)(0.65 * OpenType_F2Dot14Scale) &&
                         scaled->SubGlyphs[0].Transform[3] ==
-                            (int16_t)(0.65 * 16384.0),
+                            (int16_t)(0.65 * OpenType_F2Dot14Scale),
                     "punctuation did not use the Han body scale") ||
             !expect(scaled->SubGlyphs[0].Arg1 ==
                             (int16_t)(sourceMetric.AdvanceWidth * 0.35 / 2) &&
                         scaled->SubGlyphs[0].Arg2 == -87,
                     "punctuation did not use the Han body offsets") ||
             !expect(sourceHeader &&
-                        scaledHeader->XMin ==
-                            (int16_t)(sourceHeader->XMin * 0.65 +
-                                scaled->SubGlyphs[0].Arg1) &&
-                        scaledHeader->YMin ==
-                            (int16_t)(sourceHeader->YMin * 0.65 - 87) &&
-                        scaledHeader->XMax ==
-                            (int16_t)(sourceHeader->XMax * 0.65 +
-                                scaled->SubGlyphs[0].Arg1) &&
-                        scaledHeader->YMax ==
-                            (int16_t)(sourceHeader->YMax * 0.65 - 87),
+                        scaledHeader->XMin == transformedX(
+                            sourceHeader->XMin, scaled->SubGlyphs[0]) &&
+                        scaledHeader->YMin == (int16_t)(
+                            (int64_t)sourceHeader->YMin *
+                                scaled->SubGlyphs[0].Transform[3] /
+                                OpenType_F2Dot14Scale - 87) &&
+                        scaledHeader->XMax == transformedX(
+                            sourceHeader->XMax, scaled->SubGlyphs[0]) &&
+                        scaledHeader->YMax == (int16_t)(
+                            (int64_t)sourceHeader->YMax *
+                                scaled->SubGlyphs[0].Transform[3] /
+                                OpenType_F2Dot14Scale - 87),
                     "punctuation transformed bounds are inconsistent") ||
             !expect(scaledMetric.AdvanceWidth == sourceMetric.AdvanceWidth &&
                         scaledMetric.LSB == scaledHeader->XMin,
@@ -435,6 +562,50 @@ PINYINFONT_TEST(pinyin_synthesis)
                     stacked->SubGlyphs[2].Arg2 > stacked->SubGlyphs[1].Arg2,
                 "diaeresis and tone components overlap vertically")) {
         return 1;
+    }
+
+    const OpenType_GlyphComposite *shortReading = compositeFor(generated, 0x7C73);
+    const OpenType_GlyphComposite *longReading = compositeFor(generated, 0x5E84);
+    int32_t shortMin = 0, shortMax = 0, longMin = 0, longMax = 0;
+    if (!expect(shortReading && longReading &&
+                    pinyinBounds(generated, 0x7C73, shortMin, shortMax) &&
+                    pinyinBounds(generated, 0x5E84, longMin, longMax),
+                "failed to inspect synthesized pinyin bounds") ||
+        !expect(shortReading->SubGlyphs[0].Transform[0] ==
+                    (int16_t)(0.35 * OpenType_F2Dot14Scale) &&
+                    shortReading->SubGlyphs[0].Transform[0] ==
+                    shortReading->SubGlyphs[0].Transform[3],
+                "short reading did not retain the configured uniform scale") ||
+        !expect(longReading->SubGlyphs[0].Transform[0] <
+                    longReading->SubGlyphs[0].Transform[3],
+                "long reading did not reduce only its X scale") ||
+        !expect(longMin >= 0 && longMax <= 600 &&
+                    shortMin >= 0 && shortMax <= 600,
+                "pinyin ink exceeded an advance-cell edge") ||
+        !expect(longMin + longMax == 599 || longMin + longMax == 600,
+                "long pinyin ink was not centered on the advance cell") ||
+        !expect(pinyinComponentsShareTransform(generated, 0x5988) &&
+                    pinyinComponentsShareTransform(generated, 0x4E00) &&
+                    pinyinComponentsShareTransform(generated, 0x7C73) &&
+                    pinyinComponentsShareTransform(generated, 0x5973),
+                "a component path did not preserve the reading-wide transform")) {
+        return 1;
+    }
+    const OpenType_GlyphComposite *asymmetricPeer =
+        compositeFor(generated, 0x5986);
+    if (!expect(asymmetricPeer &&
+                    longReading->SubGlyphs.size() == asymmetricPeer->SubGlyphs.size(),
+                "asymmetric Han fixture did not synthesize matching readings")) {
+        return 1;
+    }
+    for (size_t i = 0; i + 1 < longReading->SubGlyphs.size(); i++) {
+        if (!expect(longReading->SubGlyphs[i].Arg1 ==
+                        asymmetricPeer->SubGlyphs[i].Arg1 &&
+                    longReading->SubGlyphs[i].Transform[0] ==
+                        asymmetricPeer->SubGlyphs[i].Transform[0],
+                    "Han outline asymmetry changed pinyin centering")) {
+            return 1;
+        }
     }
 
     std::string compositeSource = directory + "/synthesis-composite-i.ttf";
@@ -503,13 +674,20 @@ PINYINFONT_TEST(pinyin_synthesis)
     if (!expect(outlierParser.Parse(
                     outlierOutput.c_str(), &outlierGenerated) == kOk,
                 "failed to parse extreme-outlier output") ||
-        !expect(outlierGenerated.Head().YMin <= -3000 &&
+        !expect(outlierGenerated.Head().XMin <= -4000 &&
+                    outlierGenerated.Head().XMax >= 5000 &&
+                    outlierGenerated.Head().YMin <= -3000 &&
                     outlierGenerated.Head().YMax >= 3000,
                 "outlier fixture did not change global head bounds") ||
         !expect(sameComponentYOffsets(generated, outlierGenerated, 0x5988) &&
                     sameComponentYOffsets(generated, outlierGenerated, 0x9EBB) &&
                     sameComponentYOffsets(generated, outlierGenerated, 0x0021),
                 "unrelated head extrema changed synthesized Y offsets")) {
+        return 1;
+    }
+    if (!expect(sameComponentXLayout(generated, outlierGenerated, 0x5988) &&
+                    sameComponentXLayout(generated, outlierGenerated, 0x5E84),
+                "unrelated head X extrema changed pinyin layout")) {
         return 1;
     }
 

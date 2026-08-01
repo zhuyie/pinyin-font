@@ -94,6 +94,8 @@ typedef struct OpenType_GlyphSimple : OpenType_GlyphHeader {
 } OpenType_GlyphSimple;
 
 // Composite Glyph Flags
+static const int32_t OpenType_F2Dot14Scale = 1 << 14;
+
 #define OpenType_FlagArg1And2AreWords        0x0001
 #define OpenType_FlagArgsAreXYValues         0x0002
 #define OpenType_FlagRoundXYToGrid           0x0004

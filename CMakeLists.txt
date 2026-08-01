@@ -36,6 +36,8 @@ add_library(pinyinfont
     src/pinyin/pinyin_db.cpp
     src/synthesis/pinyin_components.h
     src/synthesis/pinyin_components.cpp
+    src/synthesis/pinyin_layout.h
+    src/synthesis/pinyin_layout.cpp
     src/synthesis/pinyin_font_builder.h
     src/synthesis/pinyin_font_builder.cpp)
 target_include_directories(pinyinfont

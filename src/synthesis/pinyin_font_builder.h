@@ -3,6 +3,7 @@
 
 #include "status.h"
 #include "ot_font.h"
+#include "pinyin_layout.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -13,16 +14,6 @@
 
 class PinyinDB;
 class PinyinComponents;
-
-struct PinyinVerticalBand {
-    int16_t YMin;
-    int16_t YMax;
-};
-
-PinyinVerticalBand SelectPinyinVerticalBand(
-    const OpenType_OS2 &os2,
-    const OpenType_Hhea &hhea,
-    const OpenType_Head &head);
 
 struct PinyinSynthesisStats {
     uint32_t SourceHanMissing = 0;
@@ -56,25 +47,23 @@ class PinyinFontBuilder
         Other,
     };
 
-    typedef struct {
+    struct BoundingBox {
         int16_t XMin;
         int16_t YMin;
         int16_t XMax;
         int16_t YMax;
-    } boundingBox;
-    typedef struct {
+    };
+    struct GlyphInfo {
         uint16_t GlyphIndex;
-        boundingBox BBox;
+        BoundingBox BBox;
         int16_t OffsetX;
         int16_t OffsetY;
-        int16_t AdvanceWidth;
-    } glyphInfo;
+    };
 
     OpenType_Font font_;
     std::unique_ptr<PinyinComponents> components_;
     double baseRatio_;
     double pinyinRatio_;
-    int16_t pinyinCharSpace_;
     int16_t pinyinMarkVSpace_;
     int16_t pinyinCharYMin_;
     int16_t baseDY_;
@@ -84,7 +73,7 @@ class PinyinFontBuilder
     std::map<uint32_t, uint16_t> char2index_;
 
     OpenType_GlyphComposite glyph_;
-    std::vector<glyphInfo> pinyinGlyphInfos_;
+    std::vector<GlyphInfo> pinyinGlyphInfos_;
 
     uint16_t glyphCountOld_;
     uint16_t glyphCountAddOK_;
@@ -135,14 +124,16 @@ private:
         uint16_t &glyphIndex);
     void __addSubGlyph(
         OpenType_GlyphComposite &glyph, 
-        uint16_t glyphIndex, const boundingBox &bbox, double scale, int16_t dx, int16_t dy, bool isLastOne);
+        uint16_t glyphIndex, const BoundingBox &bbox,
+        int16_t scaleX, int16_t scaleY,
+        int16_t dx, int16_t dy, bool isLastOne);
     ComposeFailure __composePinyin(
-        const std::wstring &pinyin, std::vector<glyphInfo> &glyphs, int16_t &totalWidth);
+        const std::wstring &pinyin, std::vector<GlyphInfo> &glyphs);
     ComposeFailure __composeCluster(
-        const wchar_t cluster[3], std::vector<glyphInfo> &glyphs, int16_t &x);
+        const wchar_t cluster[3], std::vector<GlyphInfo> &glyphs, int32_t &x);
     ComposeFailure __appendMarkGlyph(
-        wchar_t mark, int16_t hCenter, int16_t y,
-        std::vector<glyphInfo> &glyphs, int16_t &markHeight);
+        wchar_t mark, int32_t hCenter, int16_t y,
+        std::vector<GlyphInfo> &glyphs, int16_t &markHeight);
     Status __updateCmap();
 };
 
