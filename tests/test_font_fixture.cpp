@@ -27,6 +27,21 @@ static OpenType_GlyphSimple rectangle(int16_t width, int16_t height)
     return glyph;
 }
 
+static OpenType_GlyphSimple translatedRectangle(
+    int16_t xMin, int16_t yMin, int16_t width, int16_t height)
+{
+    OpenType_GlyphSimple glyph = rectangle(width, height);
+    for (size_t i = 0; i < glyph.Points.size(); i++) {
+        glyph.Points[i].X += xMin;
+        glyph.Points[i].Y += yMin;
+    }
+    glyph.XMin = xMin;
+    glyph.YMin = yMin;
+    glyph.XMax = xMin + width;
+    glyph.YMax = yMin + height;
+    return glyph;
+}
+
 static OpenType_GlyphSimple simpleI()
 {
     OpenType_GlyphSimple glyph = rectangle(120, 500);
@@ -71,12 +86,8 @@ Status OpenType_TestFontFixture::Write(
     if (status != kOk) return status;
 
     if (addExtremeOutlier) {
-        OpenType_GlyphSimple outlier = rectangle(500, 6000);
-        outlier.YMin = -3000;
-        outlier.YMax = 3000;
-        for (size_t i = 0; i < outlier.Points.size(); i++) {
-            outlier.Points[i].Y -= 3000;
-        }
+        OpenType_GlyphSimple outlier =
+            translatedRectangle(-4000, -3000, 9000, 6000);
         status = builder.AddUnmappedSimpleGlyph(
             outlier, metric, "extreme.unmapped", glyphIndex);
         if (status != kOk) return status;
@@ -108,14 +119,35 @@ Status OpenType_TestFontFixture::Write(
             status = builder.AddMappedCompositeGlyph(
                 c, glyph, metric, "", glyphIndex);
         } else {
-            OpenType_GlyphSimple glyph =
-                emptyCharacters.find(c) != emptyCharacters.end()
-                    ? OpenType_GlyphSimple()
-                    : c == 'i' && useSimpleI ? simpleI() :
-                    rectangle(c >= 0x300 && c <= 0x36F ? 180 : 500,
-                              c >= 0x300 && c <= 0x36F ? 100 : 500);
+            bool mark = c >= 0x300 && c <= 0x36F;
+            bool latin = c >= 'a' && c <= 'z';
+            OpenType_LongHorMetric glyphMetric = metric;
+            if (latin) {
+                glyphMetric.AdvanceWidth = c == 'i' ? 280 :
+                    (c == 'm' || c == 'w' ? 720 : 540);
+                glyphMetric.LSB = c == 'j' ? -40 : 40;
+            }
+            OpenType_GlyphSimple glyph;
+            if (emptyCharacters.find(c) != emptyCharacters.end()) {
+                glyph = OpenType_GlyphSimple();
+            } else if (c == 'i' && useSimpleI) {
+                glyph = simpleI();
+            } else if (mark) {
+                glyph = translatedRectangle(-120, 0, 760, 100);
+                glyphMetric.AdvanceWidth = 0;
+                glyphMetric.LSB = -120;
+            } else if (latin) {
+                int16_t width = c == 'i' ? 120 :
+                    (c == 'm' || c == 'w' ? 640 : 430);
+                glyph = translatedRectangle(glyphMetric.LSB, 0, width, 500);
+            } else {
+                int16_t xMin = c == 0x5E84 ? 40 :
+                    (c == 0x5986 ? 210 : 80);
+                glyph = translatedRectangle(xMin, 0, 500, 500);
+                glyphMetric.LSB = xMin;
+            }
             status = builder.AddMappedSimpleGlyph(
-                c, glyph, metric, "", glyphIndex);
+                c, glyph, glyphMetric, "", glyphIndex);
         }
         if (status != kOk) return status;
         mappedGlyphs[c] = glyphIndex;
