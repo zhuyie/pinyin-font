@@ -62,7 +62,7 @@ The project SHALL provide a development diagnostic path for checking generated f
 
 #### Scenario: Glyph bounds can be checked against advance widths
 - **WHEN** a developer runs the integrity diagnostic on a generated font
-- **THEN** the diagnostic reports generated glyphs whose bounding boxes overflow their advance widths
+- **THEN** the diagnostic separately reports generated glyphs whose bounding-box minimum is left of zero or whose bounding-box maximum is right of the advance width
 
 #### Scenario: Glyph bounds can be checked against line metrics
 - **WHEN** a developer runs the integrity diagnostic on a generated font
